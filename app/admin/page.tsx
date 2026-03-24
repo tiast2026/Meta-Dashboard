@@ -22,25 +22,48 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Plus,
+  Check,
+  Pencil,
+  Trash2,
+  Users,
+  ExternalLink,
+  Camera,
+  Megaphone,
+  KeyRound,
+  Shield,
+  AlertTriangle,
+  Copy,
+} from "lucide-react";
 
 interface Client {
   client_id: string;
   name: string;
+  slug: string;
   instagram_account_id: string;
   meta_ad_account_id: string;
   share_token: string;
+  has_instagram_token?: boolean;
+  has_meta_token?: boolean;
 }
 
 interface ClientForm {
   name: string;
+  slug: string;
   instagram_account_id: string;
   meta_ad_account_id: string;
+  instagram_access_token: string;
+  meta_access_token: string;
 }
 
 const emptyForm: ClientForm = {
   name: "",
+  slug: "",
   instagram_account_id: "",
   meta_ad_account_id: "",
+  instagram_access_token: "",
+  meta_access_token: "",
 };
 
 export default function AdminClientsPage() {
@@ -60,7 +83,7 @@ export default function AdminClientsPage() {
         setClients(data);
       }
     } catch (err) {
-      console.error("\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u53D6\u5F97\u30A8\u30E9\u30FC:", err);
+      console.error("クライアント取得エラー:", err);
     } finally {
       setLoading(false);
     }
@@ -80,10 +103,22 @@ export default function AdminClientsPage() {
     setEditingClient(client);
     setForm({
       name: client.name,
+      slug: client.slug || "",
       instagram_account_id: client.instagram_account_id,
       meta_ad_account_id: client.meta_ad_account_id,
+      instagram_access_token: "",
+      meta_access_token: "",
     });
     setDialogOpen(true);
+  };
+
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,20 +126,33 @@ export default function AdminClientsPage() {
     setSubmitting(true);
 
     try {
+      const payload: Record<string, string> = {
+        name: form.name,
+        slug: form.slug,
+        instagram_account_id: form.instagram_account_id,
+        meta_ad_account_id: form.meta_ad_account_id,
+      };
+      if (form.instagram_access_token) {
+        payload.instagram_access_token = form.instagram_access_token;
+      }
+      if (form.meta_access_token) {
+        payload.meta_access_token = form.meta_access_token;
+      }
+
       if (editingClient) {
         const res = await fetch(`/api/clients/${editingClient.client_id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error("\u66F4\u65B0\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
+        if (!res.ok) throw new Error("更新に失敗しました");
       } else {
         const res = await fetch("/api/clients", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error("\u4F5C\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
+        if (!res.ok) throw new Error("作成に失敗しました");
       }
 
       setDialogOpen(false);
@@ -119,15 +167,12 @@ export default function AdminClientsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("\u3053\u306E\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u3092\u524A\u9664\u3057\u3066\u3082\u3088\u308D\u3057\u3044\u3067\u3059\u304B\uFF1F")) return;
-
+    if (!confirm("このクライアントを削除してもよろしいですか？")) return;
     try {
       const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        await fetchClients();
-      }
+      if (res.ok) await fetchClients();
     } catch (err) {
-      console.error("\u524A\u9664\u30A8\u30E9\u30FC:", err);
+      console.error("削除エラー:", err);
     }
   };
 
@@ -138,151 +183,379 @@ export default function AdminClientsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const getTokenStatus = (client: Client) => {
+    const hasIg = client.has_instagram_token;
+    const hasMeta = client.has_meta_token;
+    if (hasIg && hasMeta) return "all";
+    if (hasIg || hasMeta) return "partial";
+    return "none";
+  };
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u7BA1\u7406</h2>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+            クライアント管理
+          </h2>
           <p className="text-sm text-gray-500 mt-1">
-            \u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u306E\u8FFD\u52A0\u30FB\u7DE8\u96C6\u30FB\u524A\u9664\u3092\u884C\u3044\u307E\u3059
+            クライアントの追加・編集・ダッシュボードリンクの管理
           </p>
         </div>
-        <Button onClick={openCreateDialog}>\u65B0\u898F\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8</Button>
+        <div className="flex items-center gap-3">
+          <Link href="/admin/guide">
+            <Button variant="outline" size="sm">
+              セットアップガイド
+            </Button>
+          </Link>
+          <Button
+            onClick={openCreateDialog}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            新規クライアント
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+              <Users className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{clients.length}</p>
+              <p className="text-xs text-gray-500">登録クライアント</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-pink-50 flex items-center justify-center">
+              <Camera className="w-5 h-5 text-pink-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">
+                {clients.filter((c) => c.instagram_account_id).length}
+              </p>
+              <p className="text-xs text-gray-500">Instagram連携</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+              <Megaphone className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">
+                {clients.filter((c) => c.meta_ad_account_id).length}
+              </p>
+              <p className="text-xs text-gray-500">Meta広告連携</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500">\u8AAD\u307F\u8FBC\u307F\u4E2D...</div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+          </div>
+        </div>
       ) : clients.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          \u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u304C\u307E\u3060\u767B\u9332\u3055\u308C\u3066\u3044\u307E\u305B\u3093
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+              <Users className="w-8 h-8 text-gray-400" />
+            </div>
+            <p className="text-gray-900 font-medium mb-1">
+              クライアントがまだ登録されていません
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              「新規クライアント」ボタンから最初のクライアントを追加しましょう
+            </p>
+            <Button
+              onClick={openCreateDialog}
+              variant="outline"
+              className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              クライアントを追加
+            </Button>
+          </div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>\u540D\u524D</TableHead>
-                <TableHead>IG Account</TableHead>
-                <TableHead>Ad Account</TableHead>
-                <TableHead>\u5171\u6709\u30EA\u30F3\u30AF</TableHead>
-                <TableHead className="text-right">\u64CD\u4F5C</TableHead>
+              <TableRow className="bg-gray-50/50">
+                <TableHead className="font-semibold text-gray-700">クライアント</TableHead>
+                <TableHead className="font-semibold text-gray-700">トークン状態</TableHead>
+                <TableHead className="font-semibold text-gray-700">ダッシュボード</TableHead>
+                <TableHead className="font-semibold text-gray-700 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {clients.map((client) => (
-                <TableRow key={client.client_id}>
-                  <TableCell className="font-medium">
-                    <Link
-                      href={`/admin/clients/${client.client_id}`}
-                      className="text-blue-600 hover:underline"
-                    >
-                      {client.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {client.instagram_account_id}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {client.meta_ad_account_id}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => copyShareLink(client)}
-                    >
-                      {copiedId === client.client_id ? (
-                        <Badge variant="secondary">\u30B3\u30D4\u30FC\u6E08\u307F</Badge>
+              {clients.map((client) => {
+                const tokenStatus = getTokenStatus(client);
+                return (
+                  <TableRow
+                    key={client.client_id}
+                    className="hover:bg-gray-50/50 transition-colors"
+                  >
+                    <TableCell>
+                      <Link
+                        href={`/admin/clients/${client.client_id}`}
+                        className="block group"
+                      >
+                        <p className="font-medium text-gray-900 group-hover:text-indigo-600 transition-colors">
+                          {client.name}
+                        </p>
+                        {client.slug && (
+                          <p className="text-xs text-gray-400 mt-0.5">{client.slug}</p>
+                        )}
+                        <div className="flex items-center gap-3 mt-1">
+                          {client.instagram_account_id && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+                              <Camera className="w-3 h-3 text-pink-400" />
+                              {client.instagram_account_id}
+                            </span>
+                          )}
+                          {client.meta_ad_account_id && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+                              <Megaphone className="w-3 h-3 text-blue-400" />
+                              {client.meta_ad_account_id}
+                            </span>
+                          )}
+                        </div>
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      {tokenStatus === "all" ? (
+                        <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px]">
+                          <Shield className="w-3 h-3 mr-1" />
+                          設定済み
+                        </Badge>
+                      ) : tokenStatus === "partial" ? (
+                        <Badge className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px]">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          一部未設定
+                        </Badge>
                       ) : (
-                        "\u30EA\u30F3\u30AF\u3092\u30B3\u30D4\u30FC"
+                        <Badge className="bg-gray-50 text-gray-500 border border-gray-200 text-[10px]">
+                          未設定
+                        </Badge>
                       )}
-                    </Button>
-                  </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEditDialog(client)}
-                    >
-                      \u7DE8\u96C6
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(client.client_id)}
-                    >
-                      \u524A\u9664
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-xs text-gray-600 hover:text-indigo-600"
+                          onClick={() => copyShareLink(client)}
+                        >
+                          {copiedId === client.client_id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 mr-1.5 text-green-600" />
+                              <span className="text-green-600">コピー済み</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 mr-1.5" />
+                              リンクをコピー
+                            </>
+                          )}
+                        </Button>
+                        <Link
+                          href={`/dashboard/${client.share_token}`}
+                          target="_blank"
+                          className="text-gray-400 hover:text-indigo-600 transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-gray-500 hover:text-indigo-600"
+                          onClick={() => openEditDialog(client)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-gray-500 hover:text-red-600"
+                          onClick={() => handleDelete(client.client_id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
       )}
 
-      {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {editingClient ? "\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u7DE8\u96C6" : "\u65B0\u898F\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u4F5C\u6210"}
+            <DialogTitle className="text-lg">
+              {editingClient ? "クライアント編集" : "新規クライアント作成"}
             </DialogTitle>
             <DialogDescription>
               {editingClient
-                ? "\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u60C5\u5831\u3092\u66F4\u65B0\u3057\u307E\u3059"
-                : "\u65B0\u3057\u3044\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u3092\u767B\u9332\u3057\u307E\u3059"}
+                ? "クライアント情報を更新します"
+                : "新しいクライアントを登録します"}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">\u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u540D</Label>
-              <Input
-                id="name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="\u4F8B: \u30B5\u30F3\u30D7\u30EB\u682A\u5F0F\u4F1A\u793E"
-                required
-              />
+          <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-sm font-medium">
+                  クライアント名
+                </Label>
+                <Input
+                  id="name"
+                  value={form.name}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    setForm({
+                      ...form,
+                      name: newName,
+                      slug: form.slug === "" || form.slug === generateSlug(form.name)
+                        ? generateSlug(newName)
+                        : form.slug,
+                    });
+                  }}
+                  placeholder="例: サンプル株式会社"
+                  className="h-10"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slug" className="text-sm font-medium">
+                  ローマ字表記 (URL用)
+                </Label>
+                <Input
+                  id="slug"
+                  value={form.slug}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      slug: e.target.value
+                        .toLowerCase()
+                        .replace(/[^a-z0-9-]/g, ""),
+                    })
+                  }
+                  placeholder="例: sample-corp"
+                  className="h-10 font-mono text-sm"
+                />
+                <p className="text-[10px] text-gray-400">
+                  英小文字・数字・ハイフンのみ
+                </p>
+              </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="instagram_account_id" className="text-sm font-medium">
+                  Instagram アカウント ID
+                </Label>
+                <Input
+                  id="instagram_account_id"
+                  value={form.instagram_account_id}
+                  onChange={(e) =>
+                    setForm({ ...form, instagram_account_id: e.target.value })
+                  }
+                  placeholder="例: 17841400000000000"
+                  className="h-10 font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="meta_ad_account_id" className="text-sm font-medium">
+                  Meta 広告アカウント ID
+                </Label>
+                <Input
+                  id="meta_ad_account_id"
+                  value={form.meta_ad_account_id}
+                  onChange={(e) =>
+                    setForm({ ...form, meta_ad_account_id: e.target.value })
+                  }
+                  placeholder="例: act_123456789"
+                  className="h-10 font-mono text-sm"
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="instagram_account_id">Instagram \u30A2\u30AB\u30A6\u30F3\u30C8 ID</Label>
+              <Label htmlFor="instagram_access_token" className="text-sm font-medium flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-gray-400" />
+                Instagram アクセストークン
+              </Label>
               <Input
-                id="instagram_account_id"
-                value={form.instagram_account_id}
+                id="instagram_access_token"
+                type="password"
+                value={form.instagram_access_token}
                 onChange={(e) =>
-                  setForm({ ...form, instagram_account_id: e.target.value })
+                  setForm({ ...form, instagram_access_token: e.target.value })
                 }
-                placeholder="\u4F8B: 17841400000000000"
-                required
+                placeholder={
+                  editingClient
+                    ? "設定済み（変更する場合のみ入力）"
+                    : "トークンを入力"
+                }
+                className="h-10 font-mono text-sm"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="meta_ad_account_id">Meta \u5E83\u544A\u30A2\u30AB\u30A6\u30F3\u30C8 ID</Label>
+              <Label htmlFor="meta_access_token" className="text-sm font-medium flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-gray-400" />
+                Meta アクセストークン
+              </Label>
               <Input
-                id="meta_ad_account_id"
-                value={form.meta_ad_account_id}
+                id="meta_access_token"
+                type="password"
+                value={form.meta_access_token}
                 onChange={(e) =>
-                  setForm({ ...form, meta_ad_account_id: e.target.value })
+                  setForm({ ...form, meta_access_token: e.target.value })
                 }
-                placeholder="\u4F8B: act_123456789"
-                required
+                placeholder={
+                  editingClient
+                    ? "設定済み（変更する場合のみ入力）"
+                    : "トークンを入力"
+                }
+                className="h-10 font-mono text-sm"
               />
             </div>
-            <DialogFooter>
+
+            <DialogFooter className="pt-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setDialogOpen(false)}
               >
-                \u30AD\u30E3\u30F3\u30BB\u30EB
+                キャンセル
               </Button>
-              <Button type="submit" disabled={submitting}>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
                 {submitting
-                  ? "\u4FDD\u5B58\u4E2D..."
+                  ? "保存中..."
                   : editingClient
-                  ? "\u66F4\u65B0\u3059\u308B"
-                  : "\u4F5C\u6210\u3059\u308B"}
+                  ? "更新する"
+                  : "作成する"}
               </Button>
             </DialogFooter>
           </form>
