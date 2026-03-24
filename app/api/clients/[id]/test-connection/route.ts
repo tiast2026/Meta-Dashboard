@@ -8,7 +8,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   const client = await queryOne<Record<string, unknown>>(
-    `SELECT instagram_access_token, meta_access_token, instagram_account_id, meta_ad_account_id FROM ${T} WHERE client_id = @id LIMIT 1`,
+    `SELECT meta_access_token, instagram_account_id, meta_ad_account_id FROM ${T} WHERE client_id = @id LIMIT 1`,
     { id: params.id }
   );
 
@@ -16,13 +16,14 @@ export async function POST(
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
+  const token = client.meta_access_token;
   const results: Record<string, { success: boolean; message: string; data?: Record<string, unknown> }> = {};
 
   // Test Instagram connection
-  if (client.instagram_access_token && client.instagram_account_id) {
+  if (token && client.instagram_account_id) {
     try {
       const res = await fetch(
-        `https://graph.facebook.com/v21.0/${client.instagram_account_id}?fields=id,name,username,followers_count,media_count&access_token=${client.instagram_access_token}`,
+        `https://graph.facebook.com/v21.0/${client.instagram_account_id}?fields=id,name,username,followers_count,media_count&access_token=${token}`,
         { signal: AbortSignal.timeout(10000) }
       );
       const data = await res.json();
@@ -51,18 +52,18 @@ export async function POST(
   } else {
     results.instagram = {
       success: false,
-      message: !client.instagram_access_token ? 'トークン未設定' : 'アカウントID未設定',
+      message: !token ? 'トークン未設定' : 'アカウントID未設定',
     };
   }
 
   // Test Meta Ads connection
-  if (client.meta_access_token && client.meta_ad_account_id) {
+  if (token && client.meta_ad_account_id) {
     try {
       const adAccountId = String(client.meta_ad_account_id).startsWith('act_')
         ? client.meta_ad_account_id
         : `act_${client.meta_ad_account_id}`;
       const res = await fetch(
-        `https://graph.facebook.com/v21.0/${adAccountId}?fields=id,name,account_status,currency&access_token=${client.meta_access_token}`,
+        `https://graph.facebook.com/v21.0/${adAccountId}?fields=id,name,account_status,currency&access_token=${token}`,
         { signal: AbortSignal.timeout(10000) }
       );
       const data = await res.json();
@@ -97,7 +98,7 @@ export async function POST(
   } else {
     results.meta_ads = {
       success: false,
-      message: !client.meta_access_token ? 'トークン未設定' : 'アカウントID未設定',
+      message: !token ? 'トークン未設定' : 'アカウントID未設定',
     };
   }
 

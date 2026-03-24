@@ -7,18 +7,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const body = await request.json();
-  const { token_type } = body; // 'instagram' or 'meta'
-
-  if (!token_type || !['instagram', 'meta'].includes(token_type)) {
-    return NextResponse.json(
-      { error: 'token_type must be "instagram" or "meta"' },
-      { status: 400 }
-    );
-  }
-
   const client = await queryOne<Record<string, unknown>>(
-    `SELECT instagram_access_token, meta_access_token FROM ${T} WHERE client_id = @id LIMIT 1`,
+    `SELECT meta_access_token FROM ${T} WHERE client_id = @id LIMIT 1`,
     { id: params.id }
   );
 
@@ -26,10 +16,7 @@ export async function POST(
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
-  const shortToken =
-    token_type === 'instagram'
-      ? client.instagram_access_token
-      : client.meta_access_token;
+  const shortToken = client.meta_access_token;
 
   if (!shortToken) {
     return NextResponse.json(
@@ -76,13 +63,8 @@ export async function POST(
     }
 
     // Save the long-lived token to the database
-    const tokenField =
-      token_type === 'instagram'
-        ? 'instagram_access_token'
-        : 'meta_access_token';
-
     await runDML(
-      `UPDATE ${T} SET ${tokenField} = @token, updated_at = CURRENT_TIMESTAMP() WHERE client_id = @id`,
+      `UPDATE ${T} SET meta_access_token = @token, updated_at = CURRENT_TIMESTAMP() WHERE client_id = @id`,
       { token: data.access_token, id: params.id }
     );
 

@@ -11,24 +11,18 @@ const T = table(DATASET_MASTER, 'clients');
  * 2. Use long-lived user token to get Page Access Token (never expires)
  *
  * The resulting Page Access Token can be used for Instagram Graph API calls
- * and never expires as long as the Page and permissions remain valid.
+ * and Meta Ads API calls. It never expires as long as the Page and
+ * permissions remain valid.
  */
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const body = await request.json();
-  const { token_type, page_id } = body; // token_type: 'instagram' | 'meta', page_id: Facebook Page ID
-
-  if (!token_type || !['instagram', 'meta'].includes(token_type)) {
-    return NextResponse.json(
-      { error: 'token_type must be "instagram" or "meta"' },
-      { status: 400 }
-    );
-  }
+  const { page_id } = body; // Facebook Page ID (optional on first call)
 
   const client = await queryOne<Record<string, unknown>>(
-    `SELECT instagram_access_token, meta_access_token FROM ${T} WHERE client_id = @id LIMIT 1`,
+    `SELECT meta_access_token FROM ${T} WHERE client_id = @id LIMIT 1`,
     { id: params.id }
   );
 
@@ -36,10 +30,7 @@ export async function POST(
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
-  const currentToken =
-    token_type === 'instagram'
-      ? client.instagram_access_token
-      : client.meta_access_token;
+  const currentToken = client.meta_access_token;
 
   if (!currentToken) {
     return NextResponse.json(
@@ -110,13 +101,8 @@ export async function POST(
       }
 
       // Save the permanent page token
-      const tokenField =
-        token_type === 'instagram'
-          ? 'instagram_access_token'
-          : 'meta_access_token';
-
       await runDML(
-        `UPDATE ${T} SET ${tokenField} = @token, updated_at = CURRENT_TIMESTAMP() WHERE client_id = @id`,
+        `UPDATE ${T} SET meta_access_token = @token, updated_at = CURRENT_TIMESTAMP() WHERE client_id = @id`,
         { token: pageAccessToken, id: params.id }
       );
 
@@ -149,13 +135,8 @@ export async function POST(
 
     if (pages.length === 0) {
       // No pages found - save the long-lived user token instead
-      const tokenField =
-        token_type === 'instagram'
-          ? 'instagram_access_token'
-          : 'meta_access_token';
-
       await runDML(
-        `UPDATE ${T} SET ${tokenField} = @token, updated_at = CURRENT_TIMESTAMP() WHERE client_id = @id`,
+        `UPDATE ${T} SET meta_access_token = @token, updated_at = CURRENT_TIMESTAMP() WHERE client_id = @id`,
         { token: longLivedUserToken, id: params.id }
       );
 

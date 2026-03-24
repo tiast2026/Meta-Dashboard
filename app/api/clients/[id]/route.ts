@@ -16,13 +16,12 @@ export async function GET(
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
-  // Do NOT expose raw tokens — return boolean flags instead
-  const { instagram_access_token, meta_access_token, ...safe } = client;
+  // Do NOT expose raw token — return boolean flag instead
+  const { meta_access_token, ...safe } = client;
 
   return NextResponse.json({
     ...safe,
-    has_instagram_token: !!instagram_access_token,
-    has_meta_token: !!meta_access_token,
+    has_token: !!meta_access_token,
   });
 }
 
@@ -50,10 +49,6 @@ export async function PUT(
     sets.push('meta_ad_account_id = @ad_id');
     bqParams.ad_id = body.meta_ad_account_id;
   }
-  if (body.instagram_access_token !== undefined) {
-    sets.push('instagram_access_token = @ig_token');
-    bqParams.ig_token = body.instagram_access_token || null;
-  }
   if (body.meta_access_token !== undefined) {
     sets.push('meta_access_token = @meta_token');
     bqParams.meta_token = body.meta_access_token || null;
@@ -70,7 +65,7 @@ export async function PUT(
     bqParams
   );
 
-  // Re-fetch and strip tokens for response
+  // Re-fetch and strip token for response
   const updated = await queryOne<Record<string, unknown>>(
     `SELECT * FROM ${T} WHERE client_id = @id LIMIT 1`,
     { id: params.id }
@@ -80,12 +75,11 @@ export async function PUT(
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
-  const { instagram_access_token, meta_access_token, ...safe } = updated;
+  const { meta_access_token, ...safe } = updated;
 
   return NextResponse.json({
     ...safe,
-    has_instagram_token: !!instagram_access_token,
-    has_meta_token: !!meta_access_token,
+    has_token: !!meta_access_token,
   });
 }
 
