@@ -1,7 +1,7 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import { db } from './db';
+import { db, ensureDb } from './db';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -14,16 +14,21 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = db
-          .prepare('SELECT * FROM admin_users WHERE email = ?')
-          .get(credentials.email) as { id: number; email: string; password_hash: string } | undefined;
+        await ensureDb();
+        const result = await db.execute({
+          sql: 'SELECT * FROM admin_users WHERE email = ?',
+          args: [credentials.email],
+        });
 
+        const user = result.rows[0] as unknown as
+          | { id: number; email: string; password_hash: string }
+          | undefined;
         if (!user) return null;
 
-        const valid = bcrypt.compareSync(credentials.password, user.password_hash);
+        const valid = bcrypt.compareSync(credentials.password, user.password_hash as string);
         if (!valid) return null;
 
-        return { id: String(user.id), email: user.email };
+        return { id: String(user.id), email: user.email as string };
       },
     }),
   ],
