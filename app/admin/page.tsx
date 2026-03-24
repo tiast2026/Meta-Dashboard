@@ -44,8 +44,7 @@ interface Client {
   instagram_account_id: string;
   meta_ad_account_id: string;
   share_token: string;
-  has_instagram_token?: boolean;
-  has_meta_token?: boolean;
+  has_token?: boolean;
 }
 
 interface ClientForm {
@@ -53,7 +52,6 @@ interface ClientForm {
   slug: string;
   instagram_account_id: string;
   meta_ad_account_id: string;
-  instagram_access_token: string;
   meta_access_token: string;
 }
 
@@ -62,7 +60,6 @@ const emptyForm: ClientForm = {
   slug: "",
   instagram_account_id: "",
   meta_ad_account_id: "",
-  instagram_access_token: "",
   meta_access_token: "",
 };
 
@@ -106,7 +103,6 @@ export default function AdminClientsPage() {
       slug: client.slug || "",
       instagram_account_id: client.instagram_account_id,
       meta_ad_account_id: client.meta_ad_account_id,
-      instagram_access_token: "",
       meta_access_token: "",
     });
     setDialogOpen(true);
@@ -132,9 +128,6 @@ export default function AdminClientsPage() {
         instagram_account_id: form.instagram_account_id,
         meta_ad_account_id: form.meta_ad_account_id,
       };
-      if (form.instagram_access_token) {
-        payload.instagram_access_token = form.instagram_access_token;
-      }
       if (form.meta_access_token) {
         payload.meta_access_token = form.meta_access_token;
       }
@@ -184,11 +177,7 @@ export default function AdminClientsPage() {
   };
 
   const getTokenStatus = (client: Client) => {
-    const hasIg = client.has_instagram_token;
-    const hasMeta = client.has_meta_token;
-    if (hasIg && hasMeta) return "all";
-    if (hasIg || hasMeta) return "partial";
-    return "none";
+    return client.has_token ? "all" : "none";
   };
 
   return (
@@ -337,11 +326,6 @@ export default function AdminClientsPage() {
                         <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px]">
                           <Shield className="w-3 h-3 mr-1" />
                           設定済み
-                        </Badge>
-                      ) : tokenStatus === "partial" ? (
-                        <Badge className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px]">
-                          <AlertTriangle className="w-3 h-3 mr-1" />
-                          一部未設定
                         </Badge>
                       ) : (
                         <Badge className="bg-gray-50 text-gray-500 border border-gray-200 text-[10px]">
@@ -498,29 +482,9 @@ export default function AdminClientsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="instagram_access_token" className="text-sm font-medium flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5 text-gray-400" />
-                Instagram アクセストークン
-              </Label>
-              <Input
-                id="instagram_access_token"
-                type="password"
-                value={form.instagram_access_token}
-                onChange={(e) =>
-                  setForm({ ...form, instagram_access_token: e.target.value })
-                }
-                placeholder={
-                  editingClient
-                    ? "設定済み（変更する場合のみ入力）"
-                    : "トークンを入力"
-                }
-                className="h-10 font-mono text-sm"
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="meta_access_token" className="text-sm font-medium flex items-center gap-1.5">
                 <KeyRound className="w-3.5 h-3.5 text-gray-400" />
-                Meta アクセストークン
+                Meta アクセストークン (Instagram / 広告共通)
               </Label>
               <Input
                 id="meta_access_token"
