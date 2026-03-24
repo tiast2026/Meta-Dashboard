@@ -22,3 +22,4 @@ jobs:
       - run: npm run build
         env:
           NEXTAUTH_SECRET: ci-secret
+          NEXTAUTH_URL: http://localhost:3000
