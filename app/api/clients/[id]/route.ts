@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { db } from '@/lib/db';
+import { db, ensureDb } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
@@ -12,13 +12,17 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(params.id);
+  await ensureDb();
+  const result = await db.execute({
+    sql: 'SELECT * FROM clients WHERE id = ?',
+    args: [params.id],
+  });
 
-  if (!client) {
+  if (result.rows.length === 0) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
-  return NextResponse.json(client);
+  return NextResponse.json(result.rows[0]);
 }
 
 export async function PUT(
@@ -53,15 +57,21 @@ export async function PUT(
 
   values.push(params.id);
 
-  const stmt = db.prepare(`UPDATE clients SET ${fields.join(', ')} WHERE id = ?`);
-  const result = stmt.run(...values);
+  await ensureDb();
+  const result = await db.execute({
+    sql: `UPDATE clients SET ${fields.join(', ')} WHERE id = ?`,
+    args: values as (string | number | null)[],
+  });
 
-  if (result.changes === 0) {
+  if (result.rowsAffected === 0) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
-  const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(params.id);
-  return NextResponse.json(updated);
+  const updated = await db.execute({
+    sql: 'SELECT * FROM clients WHERE id = ?',
+    args: [params.id],
+  });
+  return NextResponse.json(updated.rows[0]);
 }
 
 export async function DELETE(
@@ -73,9 +83,13 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const result = db.prepare('DELETE FROM clients WHERE id = ?').run(params.id);
+  await ensureDb();
+  const result = await db.execute({
+    sql: 'DELETE FROM clients WHERE id = ?',
+    args: [params.id],
+  });
 
-  if (result.changes === 0) {
+  if (result.rowsAffected === 0) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 

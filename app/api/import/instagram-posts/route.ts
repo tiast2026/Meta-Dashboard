@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { db } from '@/lib/db';
+import { db, ensureDb } from '@/lib/db';
 import Papa from 'papaparse';
+import type { InStatement } from '@libsql/client';
 
 const HEADER_MAP: Record<string, string> = {
   'ID': 'ig_post_id',
@@ -58,40 +59,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'CSV parse error', details: errors }, { status: 400 });
   }
 
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO instagram_posts
-    (client_id, ig_post_id, caption, product_type, media_type, media_url, permalink, posted_at, impressions, reach, interactions, likes, comments, saves, shares)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  await ensureDb();
 
-  const insertMany = db.transaction((rows: Record<string, string>[]) => {
-    let count = 0;
-    for (const row of rows) {
-      const mapped = mapHeaders(row);
-      if (!mapped.ig_post_id) continue;
-      stmt.run(
-        clientId,
-        mapped.ig_post_id,
-        mapped.caption || null,
-        mapped.product_type || null,
-        mapped.media_type || null,
-        mapped.media_url || null,
-        mapped.permalink || null,
-        mapped.posted_at || null,
-        mapped.impressions || 0,
-        mapped.reach || 0,
-        mapped.interactions || 0,
-        mapped.likes || 0,
-        mapped.comments || 0,
-        mapped.saves || 0,
-        mapped.shares || 0
-      );
-      count++;
-    }
-    return count;
-  });
+  const statements: InStatement[] = [];
+  for (const row of data) {
+    const mapped = mapHeaders(row);
+    if (!mapped.ig_post_id) continue;
+    statements.push({
+      sql: `INSERT OR REPLACE INTO instagram_posts
+        (client_id, ig_post_id, caption, product_type, media_type, media_url, permalink, posted_at, impressions, reach, interactions, likes, comments, saves, shares)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        clientId, mapped.ig_post_id,
+        mapped.caption || null, mapped.product_type || null,
+        mapped.media_type || null, mapped.media_url || null,
+        mapped.permalink || null, mapped.posted_at || null,
+        Number(mapped.impressions) || 0, Number(mapped.reach) || 0,
+        Number(mapped.interactions) || 0, Number(mapped.likes) || 0,
+        Number(mapped.comments) || 0, Number(mapped.saves) || 0,
+        Number(mapped.shares) || 0,
+      ],
+    });
+  }
 
-  const rowCount = insertMany(data);
+  for (let i = 0; i < statements.length; i += 100) {
+    await db.batch(statements.slice(i, i + 100), 'write');
+  }
 
-  return NextResponse.json({ success: true, rowCount });
+  return NextResponse.json({ success: true, rowCount: statements.length });
 }

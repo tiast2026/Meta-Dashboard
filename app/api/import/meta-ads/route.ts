@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { db } from '@/lib/db';
+import { db, ensureDb } from '@/lib/db';
 import Papa from 'papaparse';
+import type { InStatement } from '@libsql/client';
 
 const HEADER_MAP: Record<string, string> = {
   '日付': 'date',
@@ -59,41 +60,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'CSV parse error', details: errors }, { status: 400 });
   }
 
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO meta_ad_insights
-    (client_id, date, publisher_platform, campaign_id, campaign_name, campaign_objective, adset_id, adset_name, ad_id, ad_name, impressions, reach, clicks, results, website_actions, spend)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  await ensureDb();
 
-  const insertMany = db.transaction((rows: Record<string, string>[]) => {
-    let count = 0;
-    for (const row of rows) {
-      const mapped = mapHeaders(row);
-      if (!mapped.date) continue;
-      stmt.run(
-        clientId,
-        mapped.date,
-        mapped.publisher_platform || null,
-        mapped.campaign_id || null,
-        mapped.campaign_name || null,
-        mapped.campaign_objective || null,
-        mapped.adset_id || null,
-        mapped.adset_name || null,
-        mapped.ad_id || null,
-        mapped.ad_name || null,
-        mapped.impressions || 0,
-        mapped.reach || 0,
-        mapped.clicks || 0,
-        mapped.results || 0,
-        mapped.website_actions || 0,
-        mapped.spend || 0
-      );
-      count++;
-    }
-    return count;
-  });
+  const statements: InStatement[] = [];
+  for (const row of data) {
+    const mapped = mapHeaders(row);
+    if (!mapped.date) continue;
+    statements.push({
+      sql: `INSERT OR REPLACE INTO meta_ad_insights
+        (client_id, date, publisher_platform, campaign_id, campaign_name, campaign_objective, adset_id, adset_name, ad_id, ad_name, impressions, reach, clicks, results, website_actions, spend)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        clientId, mapped.date,
+        mapped.publisher_platform || null, mapped.campaign_id || null,
+        mapped.campaign_name || null, mapped.campaign_objective || null,
+        mapped.adset_id || null, mapped.adset_name || null,
+        mapped.ad_id || null, mapped.ad_name || null,
+        Number(mapped.impressions) || 0, Number(mapped.reach) || 0,
+        Number(mapped.clicks) || 0, Number(mapped.results) || 0,
+        Number(mapped.website_actions) || 0, Number(mapped.spend) || 0,
+      ],
+    });
+  }
 
-  const rowCount = insertMany(data);
+  for (let i = 0; i < statements.length; i += 100) {
+    await db.batch(statements.slice(i, i + 100), 'write');
+  }
 
-  return NextResponse.json({ success: true, rowCount });
+  return NextResponse.json({ success: true, rowCount: statements.length });
 }

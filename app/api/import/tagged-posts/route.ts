@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { db } from '@/lib/db';
+import { db, ensureDb } from '@/lib/db';
 import Papa from 'papaparse';
+import type { InStatement } from '@libsql/client';
 
 const HEADER_MAP: Record<string, string> = {
   'ID': 'ig_post_id',
@@ -52,34 +53,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'CSV parse error', details: errors }, { status: 400 });
   }
 
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO instagram_tagged_posts
-    (client_id, ig_post_id, posted_at, account_name, caption, media_url, permalink, likes, comments)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  await ensureDb();
 
-  const insertMany = db.transaction((rows: Record<string, string>[]) => {
-    let count = 0;
-    for (const row of rows) {
-      const mapped = mapHeaders(row);
-      if (!mapped.ig_post_id) continue;
-      stmt.run(
-        clientId,
-        mapped.ig_post_id,
-        mapped.posted_at || null,
-        mapped.account_name || null,
-        mapped.caption || null,
-        mapped.media_url || null,
+  const statements: InStatement[] = [];
+  for (const row of data) {
+    const mapped = mapHeaders(row);
+    if (!mapped.ig_post_id) continue;
+    statements.push({
+      sql: `INSERT OR REPLACE INTO instagram_tagged_posts
+        (client_id, ig_post_id, posted_at, account_name, caption, media_url, permalink, likes, comments)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        clientId, mapped.ig_post_id,
+        mapped.posted_at || null, mapped.account_name || null,
+        mapped.caption || null, mapped.media_url || null,
         mapped.permalink || null,
-        mapped.likes || 0,
-        mapped.comments || 0
-      );
-      count++;
-    }
-    return count;
-  });
+        Number(mapped.likes) || 0, Number(mapped.comments) || 0,
+      ],
+    });
+  }
 
-  const rowCount = insertMany(data);
+  for (let i = 0; i < statements.length; i += 100) {
+    await db.batch(statements.slice(i, i + 100), 'write');
+  }
 
-  return NextResponse.json({ success: true, rowCount });
+  return NextResponse.json({ success: true, rowCount: statements.length });
 }

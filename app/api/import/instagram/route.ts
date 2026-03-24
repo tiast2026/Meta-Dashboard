@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { db } from '@/lib/db';
+import { db, ensureDb } from '@/lib/db';
 import Papa from 'papaparse';
+import type { InStatement } from '@libsql/client';
 
 const HEADER_MAP: Record<string, string> = {
   '日付': 'date',
@@ -56,38 +57,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'CSV parse error', details: errors }, { status: 400 });
   }
 
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO instagram_daily_insights
-    (client_id, date, impressions, reach, actions, interactions, comments, likes, saves, shares, followers, follows, posts_count)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  await ensureDb();
 
-  const insertMany = db.transaction((rows: Record<string, string>[]) => {
-    let count = 0;
-    for (const row of rows) {
-      const mapped = mapHeaders(row);
-      if (!mapped.date) continue;
-      stmt.run(
-        clientId,
-        mapped.date,
-        mapped.impressions || 0,
-        mapped.reach || 0,
-        mapped.actions || 0,
-        mapped.interactions || 0,
-        mapped.comments || 0,
-        mapped.likes || 0,
-        mapped.saves || 0,
-        mapped.shares || 0,
-        mapped.followers || 0,
-        mapped.follows || 0,
-        mapped.posts_count || 0
-      );
-      count++;
-    }
-    return count;
-  });
+  const statements: InStatement[] = [];
+  for (const row of data) {
+    const mapped = mapHeaders(row);
+    if (!mapped.date) continue;
+    statements.push({
+      sql: `INSERT OR REPLACE INTO instagram_daily_insights
+        (client_id, date, impressions, reach, actions, interactions, comments, likes, saves, shares, followers, follows, posts_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        clientId, mapped.date,
+        Number(mapped.impressions) || 0, Number(mapped.reach) || 0,
+        Number(mapped.actions) || 0, Number(mapped.interactions) || 0,
+        Number(mapped.comments) || 0, Number(mapped.likes) || 0,
+        Number(mapped.saves) || 0, Number(mapped.shares) || 0,
+        Number(mapped.followers) || 0, Number(mapped.follows) || 0,
+        Number(mapped.posts_count) || 0,
+      ],
+    });
+  }
 
-  const rowCount = insertMany(data);
+  for (let i = 0; i < statements.length; i += 100) {
+    await db.batch(statements.slice(i, i + 100), 'write');
+  }
 
-  return NextResponse.json({ success: true, rowCount });
+  return NextResponse.json({ success: true, rowCount: statements.length });
 }
