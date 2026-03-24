@@ -1,8 +1,5 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "installCommand": "npm install",
-  "env": {
-    "NEXTAUTH_SECRET": "@nextauth-secret"
-  }
+  "installCommand": "npm install"
 }
