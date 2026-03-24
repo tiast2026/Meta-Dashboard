@@ -21,7 +21,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
+import {
+  Plus,
+  Check,
+  Pencil,
+  Trash2,
+  Users,
+  ExternalLink,
+  Camera,
+  Megaphone,
+  Link2,
+} from "lucide-react";
 
 interface Client {
   client_id: string;
@@ -140,79 +150,179 @@ export default function AdminClientsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">クライアント管理</h2>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+            クライアント管理
+          </h2>
           <p className="text-sm text-gray-500 mt-1">
-            クライアントの追加・編集・削除を行います
+            クライアントの追加・編集・ダッシュボードリンクの管理
           </p>
         </div>
-        <Button onClick={openCreateDialog}>新規クライアント</Button>
+        <Button
+          onClick={openCreateDialog}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          新規クライアント
+        </Button>
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+              <Users className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{clients.length}</p>
+              <p className="text-xs text-gray-500">登録クライアント</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-pink-50 flex items-center justify-center">
+              <Camera className="w-5 h-5 text-pink-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">
+                {clients.filter((c) => c.instagram_account_id).length}
+              </p>
+              <p className="text-xs text-gray-500">Instagram連携</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+              <Megaphone className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">
+                {clients.filter((c) => c.meta_ad_account_id).length}
+              </p>
+              <p className="text-xs text-gray-500">Meta広告連携</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Client List */}
       {loading ? (
-        <div className="text-center py-12 text-gray-500">読み込み中...</div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+          </div>
+        </div>
       ) : clients.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          クライアントがまだ登録されていません
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+              <Users className="w-8 h-8 text-gray-400" />
+            </div>
+            <p className="text-gray-900 font-medium mb-1">
+              クライアントがまだ登録されていません
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              「新規クライアント」ボタンから最初のクライアントを追加しましょう
+            </p>
+            <Button
+              onClick={openCreateDialog}
+              variant="outline"
+              className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              クライアントを追加
+            </Button>
+          </div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>名前</TableHead>
-                <TableHead>IG Account</TableHead>
-                <TableHead>Ad Account</TableHead>
-                <TableHead>共有リンク</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+              <TableRow className="bg-gray-50/50">
+                <TableHead className="font-semibold text-gray-700">クライアント名</TableHead>
+                <TableHead className="font-semibold text-gray-700">Instagram ID</TableHead>
+                <TableHead className="font-semibold text-gray-700">広告アカウント</TableHead>
+                <TableHead className="font-semibold text-gray-700">ダッシュボード</TableHead>
+                <TableHead className="font-semibold text-gray-700 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {clients.map((client) => (
-                <TableRow key={client.client_id}>
-                  <TableCell className="font-medium">
+                <TableRow
+                  key={client.client_id}
+                  className="hover:bg-gray-50/50 transition-colors"
+                >
+                  <TableCell>
                     <Link
                       href={`/admin/clients/${client.client_id}`}
-                      className="text-blue-600 hover:underline"
+                      className="font-medium text-gray-900 hover:text-indigo-600 transition-colors"
                     >
                       {client.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {client.instagram_account_id}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {client.meta_ad_account_id}
+                  <TableCell>
+                    <code className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                      {client.instagram_account_id || "—"}
+                    </code>
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => copyShareLink(client)}
-                    >
-                      {copiedId === client.client_id ? (
-                        <Badge variant="secondary">コピー済み</Badge>
-                      ) : (
-                        "リンクをコピー"
-                      )}
-                    </Button>
+                    <code className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                      {client.meta_ad_account_id || "—"}
+                    </code>
                   </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEditDialog(client)}
-                    >
-                      編集
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(client.client_id)}
-                    >
-                      削除
-                    </Button>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs text-gray-600 hover:text-indigo-600"
+                        onClick={() => copyShareLink(client)}
+                      >
+                        {copiedId === client.client_id ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 mr-1.5 text-green-600" />
+                            <span className="text-green-600">コピー済み</span>
+                          </>
+                        ) : (
+                          <>
+                            <Link2 className="w-3.5 h-3.5 mr-1.5" />
+                            リンクをコピー
+                          </>
+                        )}
+                      </Button>
+                      <Link
+                        href={`/dashboard/${client.share_token}`}
+                        target="_blank"
+                        className="text-gray-400 hover:text-indigo-600 transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-gray-500 hover:text-indigo-600"
+                        onClick={() => openEditDialog(client)}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-gray-500 hover:text-red-600"
+                        onClick={() => handleDelete(client.client_id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -223,9 +333,9 @@ export default function AdminClientsPage() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-lg">
               {editingClient ? "クライアント編集" : "新規クライアント作成"}
             </DialogTitle>
             <DialogDescription>
@@ -234,19 +344,24 @@ export default function AdminClientsPage() {
                 : "新しいクライアントを登録します"}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5 mt-2">
             <div className="space-y-2">
-              <Label htmlFor="name">クライアント名</Label>
+              <Label htmlFor="name" className="text-sm font-medium">
+                クライアント名
+              </Label>
               <Input
                 id="name"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="例: サンプル株式会社"
+                className="h-10"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="instagram_account_id">Instagram アカウント ID</Label>
+              <Label htmlFor="instagram_account_id" className="text-sm font-medium">
+                Instagram アカウント ID
+              </Label>
               <Input
                 id="instagram_account_id"
                 value={form.instagram_account_id}
@@ -254,11 +369,14 @@ export default function AdminClientsPage() {
                   setForm({ ...form, instagram_account_id: e.target.value })
                 }
                 placeholder="例: 17841400000000000"
+                className="h-10 font-mono text-sm"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="meta_ad_account_id">Meta 広告アカウント ID</Label>
+              <Label htmlFor="meta_ad_account_id" className="text-sm font-medium">
+                Meta 広告アカウント ID
+              </Label>
               <Input
                 id="meta_ad_account_id"
                 value={form.meta_ad_account_id}
@@ -266,10 +384,11 @@ export default function AdminClientsPage() {
                   setForm({ ...form, meta_ad_account_id: e.target.value })
                 }
                 placeholder="例: act_123456789"
+                className="h-10 font-mono text-sm"
                 required
               />
             </div>
-            <DialogFooter>
+            <DialogFooter className="pt-2">
               <Button
                 type="button"
                 variant="outline"
@@ -277,7 +396,11 @@ export default function AdminClientsPage() {
               >
                 キャンセル
               </Button>
-              <Button type="submit" disabled={submitting}>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
                 {submitting
                   ? "保存中..."
                   : editingClient
