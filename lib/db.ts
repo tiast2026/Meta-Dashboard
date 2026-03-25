@@ -31,6 +31,27 @@ let initialized = false;
 
 export async function ensureDb() {
   if (initialized) return;
+
+  // Drop old tables with INTEGER client_id / foreign key constraints
+  // so they get recreated with TEXT client_id
+  const migrationTables = [
+    'instagram_daily_insights',
+    'instagram_posts',
+    'instagram_tagged_posts',
+    'meta_ad_insights',
+  ];
+  for (const t of migrationTables) {
+    try {
+      const info = await db.execute(`PRAGMA table_info(${t})`);
+      const clientIdCol = info.rows.find((r) => r.name === 'client_id');
+      if (clientIdCol && clientIdCol.type === 'INTEGER') {
+        await db.execute(`DROP TABLE IF EXISTS ${t}`);
+      }
+    } catch {
+      // table doesn't exist yet — that's fine
+    }
+  }
+
   const schemaPath = path.join(process.cwd(), 'lib', 'schema.sql');
   const schema = fs.readFileSync(schemaPath, 'utf-8');
   const statements = schema

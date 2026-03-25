@@ -1,4 +1,4 @@
--- Clients table
+-- Clients table (metadata managed in BigQuery, this is for local/fallback only)
 CREATE TABLE IF NOT EXISTS clients (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS clients (
 
 CREATE TABLE IF NOT EXISTS instagram_daily_insights (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL,
   date TEXT NOT NULL,
   impressions INTEGER DEFAULT 0,
   reach INTEGER DEFAULT 0,
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS instagram_daily_insights (
 
 CREATE TABLE IF NOT EXISTS instagram_posts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL,
   ig_post_id TEXT,
   caption TEXT,
   product_type TEXT,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS instagram_posts (
 
 CREATE TABLE IF NOT EXISTS instagram_tagged_posts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL,
   ig_post_id TEXT,
   posted_at TEXT,
   account_name TEXT,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS instagram_tagged_posts (
 
 CREATE TABLE IF NOT EXISTS meta_ad_insights (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL,
   date TEXT NOT NULL,
   publisher_platform TEXT,
   campaign_id TEXT,
