@@ -25,21 +25,12 @@ export async function POST(request: NextRequest) {
      VALUES (@client_id, @name, @slug, @ig_id, @ad_id, @meta_token, @share_token, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
     {
       client_id,
-      name,
-      slug: slug || '',
-      ig_id: instagram_account_id || '',
-      ad_id: meta_ad_account_id || '',
-      meta_token: meta_access_token || '',
+      name: String(name),
+      slug: String(slug || ''),
+      ig_id: String(instagram_account_id || ''),
+      ad_id: String(meta_ad_account_id || ''),
+      meta_token: String(meta_access_token || ''),
       share_token,
-    },
-    {
-      client_id: 'STRING',
-      name: 'STRING',
-      slug: 'STRING',
-      ig_id: 'STRING',
-      ad_id: 'STRING',
-      meta_token: 'STRING',
-      share_token: 'STRING',
     }
   );
 
