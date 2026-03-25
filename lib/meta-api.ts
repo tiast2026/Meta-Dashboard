@@ -8,17 +8,15 @@ const API_VERSION = 'v21.0';
 const BASE_URL = `https://graph.facebook.com/${API_VERSION}`;
 const TIMEOUT = 30000;
 
-// IG Insights API: max 30 days per request, max 2 years history
+// IG Insights API: max 30 days per request
 const IG_INSIGHTS_CHUNK_DAYS = 30;
-const IG_INSIGHTS_MAX_DAYS = 730;
 
-// Meta Ads API: max 37 months history
-const ADS_MAX_MONTHS = 37;
+// Meta Ads API
 const ADS_CHUNK_DAYS = 30;
 
 // Posts pagination
 const POSTS_PAGE_LIMIT = 50;
-const POSTS_MAX_PAGES = 20; // safety limit: 50 * 20 = 1000 posts max
+const POSTS_MAX_PAGES = 5; // safety limit: 50 * 5 = 250 posts (Vercel timeout safe)
 
 interface MetaPaging {
   cursors?: { after?: string };
@@ -77,15 +75,14 @@ export async function fetchIgAccountInsights(
 ): Promise<IgDailyInsight[]> {
   const now = new Date();
   const endDate = until ? new Date(until) : now;
-  const defaultStart = new Date(now.getTime() - IG_INSIGHTS_MAX_DAYS * 86400000);
+  // Default: 30 days (safe for Vercel timeout). Pass since/until for longer ranges.
+  const defaultStart = new Date(now.getTime() - 30 * 86400000);
   const startDate = since ? new Date(since) : defaultStart;
 
   const metrics = [
     'impressions',
     'reach',
     'follower_count',
-    'profile_views',
-    'website_clicks',
   ].join(',');
 
   const chunks = dateChunks(startDate, endDate, IG_INSIGHTS_CHUNK_DAYS);
@@ -151,37 +148,19 @@ export async function fetchIgPosts(
     if (!res.data || res.data.length === 0) break;
 
     for (const media of res.data) {
-      const postId = String(media.id);
-      let impressions = 0, reach = 0, saves = 0, shares = 0;
-      try {
-        const insightsUrl = `${BASE_URL}/${postId}/insights?metric=impressions,reach,saved,shares&access_token=${token}`;
-        const insightsRes = await metaFetch<{ name: string; values: { value: number }[] }>(insightsUrl);
-        if (insightsRes.data) {
-          for (const m of insightsRes.data) {
-            const v = m.values?.[0]?.value ?? 0;
-            if (m.name === 'impressions') impressions = v;
-            if (m.name === 'reach') reach = v;
-            if (m.name === 'saved') saves = v;
-            if (m.name === 'shares') shares = v;
-          }
-        }
-      } catch {
-        // Some media types don't support all insights
-      }
-
       posts.push({
-        ig_post_id: postId,
+        ig_post_id: String(media.id),
         caption: String(media.caption || ''),
         media_type: String(media.media_type || ''),
         media_url: String(media.media_url || ''),
         permalink: String(media.permalink || ''),
         posted_at: String(media.timestamp || ''),
-        impressions,
-        reach,
+        impressions: 0,
+        reach: 0,
         likes: Number(media.like_count) || 0,
         comments: Number(media.comments_count) || 0,
-        saves,
-        shares,
+        saves: 0,
+        shares: 0,
       });
     }
 
@@ -211,28 +190,37 @@ export async function fetchIgTaggedPosts(
 ): Promise<IgTaggedPost[]> {
   const fields = 'id,caption,media_url,permalink,timestamp,like_count,comments_count,username';
   const results: IgTaggedPost[] = [];
-  let nextUrl: string | null = `${BASE_URL}/${igAccountId}/tags?fields=${fields}&limit=${POSTS_PAGE_LIMIT}&access_token=${token}`;
-  let page = 0;
 
-  while (nextUrl && page < POSTS_MAX_PAGES) {
-    const res: MetaApiResponse<Record<string, unknown>> = await metaFetch<Record<string, unknown>>(nextUrl);
-    if (!res.data || res.data.length === 0) break;
+  try {
+    let nextUrl: string | null = `${BASE_URL}/${igAccountId}/tags?fields=${fields}&limit=${POSTS_PAGE_LIMIT}&access_token=${token}`;
+    let page = 0;
 
-    for (const m of res.data) {
-      results.push({
-        ig_post_id: String(m.id),
-        posted_at: String(m.timestamp || ''),
-        account_name: String(m.username || ''),
-        caption: String(m.caption || ''),
-        media_url: String(m.media_url || ''),
-        permalink: String(m.permalink || ''),
-        likes: Number(m.like_count) || 0,
-        comments: Number(m.comments_count) || 0,
-      });
+    while (nextUrl && page < POSTS_MAX_PAGES) {
+      const res: MetaApiResponse<Record<string, unknown>> = await metaFetch<Record<string, unknown>>(nextUrl);
+      if (!res.data || res.data.length === 0) break;
+
+      for (const m of res.data) {
+        results.push({
+          ig_post_id: String(m.id),
+          posted_at: String(m.timestamp || ''),
+          account_name: String(m.username || ''),
+          caption: String(m.caption || ''),
+          media_url: String(m.media_url || ''),
+          permalink: String(m.permalink || ''),
+          likes: Number(m.like_count) || 0,
+          comments: Number(m.comments_count) || 0,
+        });
+      }
+
+      nextUrl = (res.paging?.next as string) || null;
+      page++;
     }
-
-    nextUrl = (res.paging?.next as string) || null;
-    page++;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('permission') || msg.includes('code: 10')) {
+      throw new Error('タグ付け投稿の取得にはユーザートークンが必要です。ページトークンでは取得できません。');
+    }
+    throw err;
   }
 
   return results;
@@ -265,7 +253,8 @@ export async function fetchMetaAds(
   const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
   const now = new Date();
   const endDate = until ? new Date(until) : now;
-  const defaultStart = new Date(now.getFullYear(), now.getMonth() - ADS_MAX_MONTHS, now.getDate());
+  // Default: 30 days (safe for Vercel timeout). Pass since/until for longer ranges.
+  const defaultStart = new Date(now.getTime() - 30 * 86400000);
   const startDate = since ? new Date(since) : defaultStart;
 
   const fields = 'campaign_id,campaign_name,objective,adset_id,adset_name,ad_id,ad_name,impressions,reach,clicks,spend,actions';

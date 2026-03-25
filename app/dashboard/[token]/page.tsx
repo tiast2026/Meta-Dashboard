@@ -168,16 +168,16 @@ function DashboardContent() {
   }));
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-10 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div>
-            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
+            <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
               {clientName || "ダッシュボード"}
             </h1>
-            <p className="text-sm text-muted-foreground">
-              レポートダッシュボード
+            <p className="text-sm text-slate-400">
+              Analytics Dashboard
             </p>
           </div>
           <DateRangePicker
@@ -189,17 +189,17 @@ function DashboardContent() {
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
             {error}
           </div>
         )}
 
         <Tabs value={tab} onValueChange={handleTabChange}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="instagram">Instagram分析</TabsTrigger>
-            <TabsTrigger value="ads">Meta広告</TabsTrigger>
+          <TabsList className="mb-8 bg-slate-800/50 border border-white/10">
+            <TabsTrigger value="instagram" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:to-purple-500 data-[state=active]:text-white text-slate-400">Instagram分析</TabsTrigger>
+            <TabsTrigger value="ads" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white text-slate-400">Meta広告</TabsTrigger>
           </TabsList>
 
           {/* Instagram Tab */}
@@ -207,7 +207,7 @@ function DashboardContent() {
             {loading ? (
               <LoadingSkeleton />
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {/* KPI Grid */}
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                   <KpiCard
@@ -219,6 +219,7 @@ function DashboardContent() {
                     )}
                     icon={<Users className="h-4 w-4" />}
                     suffix="人"
+                    color="pink"
                   />
                   <KpiCard
                     title="インプレッション"
@@ -228,6 +229,7 @@ function DashboardContent() {
                       igPrevKpi.impressions || 0
                     )}
                     icon={<Eye className="h-4 w-4" />}
+                    color="blue"
                   />
                   <KpiCard
                     title="リーチ"
@@ -237,6 +239,7 @@ function DashboardContent() {
                       igPrevKpi.reach || 0
                     )}
                     icon={<Target className="h-4 w-4" />}
+                    color="purple"
                   />
                   <KpiCard
                     title="いいね"
@@ -246,6 +249,7 @@ function DashboardContent() {
                       igPrevKpi.likes || 0
                     )}
                     icon={<Heart className="h-4 w-4" />}
+                    color="emerald"
                   />
                   <KpiCard
                     title="フォロー増加"
@@ -255,21 +259,30 @@ function DashboardContent() {
                       igPrevKpi.follows || 0
                     )}
                     icon={<UserPlus className="h-4 w-4" />}
+                    color="amber"
                   />
                 </div>
 
                 {/* Charts */}
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <FollowerTrendChart data={followerData} />
-                  <EngagementChart data={engagementData} />
+                  <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+                    <FollowerTrendChart data={followerData} />
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+                    <EngagementChart data={engagementData} />
+                  </div>
                 </div>
 
                 {/* Post Performance Table */}
-                <PostTable posts={posts as never[]} />
+                <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+                  <PostTable posts={posts as never[]} />
+                </div>
 
                 {/* Tagged Posts Table */}
                 {taggedPosts.length > 0 && (
-                  <TaggedPostsTable posts={taggedPosts as never[]} />
+                  <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+                    <TaggedPostsTable posts={taggedPosts as never[]} />
+                  </div>
                 )}
               </div>
             )}
@@ -280,7 +293,7 @@ function DashboardContent() {
             {loading ? (
               <LoadingSkeleton />
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {/* KPI Grid */}
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                   <KpiCard
@@ -291,6 +304,7 @@ function DashboardContent() {
                       adsPrevKpi.spend || 0
                     )}
                     prefix="¥"
+                    color="amber"
                   />
                   <KpiCard
                     title="インプレッション"
@@ -300,6 +314,7 @@ function DashboardContent() {
                       adsPrevKpi.impressions || 0
                     )}
                     icon={<Eye className="h-4 w-4" />}
+                    color="blue"
                   />
                   <KpiCard
                     title="リーチ"
@@ -309,6 +324,7 @@ function DashboardContent() {
                       adsPrevKpi.reach || 0
                     )}
                     icon={<Target className="h-4 w-4" />}
+                    color="purple"
                   />
                   <KpiCard
                     title="クリック"
@@ -318,6 +334,7 @@ function DashboardContent() {
                       adsPrevKpi.clicks || 0
                     )}
                     icon={<MousePointerClick className="h-4 w-4" />}
+                    color="emerald"
                   />
                   <KpiCard
                     title="CPC"
@@ -327,18 +344,25 @@ function DashboardContent() {
                       adsPrevKpi.cpc || 0
                     )}
                     prefix="¥"
+                    color="pink"
                   />
                 </div>
 
                 {/* Daily Trend Chart */}
-                <DailyTrendChart data={adsDaily as never[]} />
+                <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+                  <DailyTrendChart data={adsDaily as never[]} />
+                </div>
 
                 {/* Campaign Table */}
-                <CampaignTable campaigns={campaigns as never[]} />
+                <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+                  <CampaignTable campaigns={campaigns as never[]} />
+                </div>
 
                 {/* Platform Breakdown */}
                 {platforms.length > 0 && (
-                  <PlatformBreakdown data={platforms as never[]} />
+                  <div className="rounded-2xl border border-white/10 bg-slate-800/50 p-6 backdrop-blur">
+                    <PlatformBreakdown data={platforms as never[]} />
+                  </div>
                 )}
               </div>
             )}
@@ -351,20 +375,20 @@ function DashboardContent() {
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
-            className="h-[110px] animate-pulse rounded-lg border bg-muted/40"
+            className="h-[130px] animate-pulse rounded-2xl bg-slate-800/50 border border-white/10"
           />
         ))}
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="h-[380px] animate-pulse rounded-lg border bg-muted/40" />
-        <div className="h-[380px] animate-pulse rounded-lg border bg-muted/40" />
+        <div className="h-[380px] animate-pulse rounded-2xl bg-slate-800/50 border border-white/10" />
+        <div className="h-[380px] animate-pulse rounded-2xl bg-slate-800/50 border border-white/10" />
       </div>
-      <div className="h-[400px] animate-pulse rounded-lg border bg-muted/40" />
+      <div className="h-[400px] animate-pulse rounded-2xl bg-slate-800/50 border border-white/10" />
     </div>
   );
 }
