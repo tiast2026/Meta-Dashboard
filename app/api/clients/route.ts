@@ -11,7 +11,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { name, instagram_account_id, meta_ad_account_id } = body;
+  const { name, slug, instagram_account_id, meta_ad_account_id, meta_access_token } = body;
 
   if (!name) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -21,13 +21,15 @@ export async function POST(request: NextRequest) {
   const share_token = uuidv4();
 
   await runDML(
-    `INSERT INTO ${T} (client_id, name, instagram_account_id, meta_ad_account_id, share_token, created_at, updated_at)
-     VALUES (@client_id, @name, @ig_id, @ad_id, @share_token, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
+    `INSERT INTO ${T} (client_id, name, slug, instagram_account_id, meta_ad_account_id, meta_access_token, share_token, created_at, updated_at)
+     VALUES (@client_id, @name, @slug, @ig_id, @ad_id, @meta_token, @share_token, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
     {
       client_id,
       name,
+      slug: slug || null,
       ig_id: instagram_account_id || null,
       ad_id: meta_ad_account_id || null,
+      meta_token: meta_access_token || null,
       share_token,
     }
   );
@@ -35,6 +37,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     client_id,
     name,
+    slug: slug || null,
     instagram_account_id: instagram_account_id || null,
     meta_ad_account_id: meta_ad_account_id || null,
     share_token,
