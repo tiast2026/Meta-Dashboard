@@ -44,13 +44,22 @@ export async function PUT(
 
   sets.push('updated_at = CURRENT_TIMESTAMP()');
 
-  await runDML(`UPDATE ${T} SET ${sets.join(', ')} WHERE client_id = @id`, bqParams);
+  try {
+    await runDML(`UPDATE ${T} SET ${sets.join(', ')} WHERE client_id = @id`, bqParams);
+  } catch (err) {
+    console.error('BigQuery UPDATE error:', err);
+    return NextResponse.json({ error: 'データベース更新に失敗しました' }, { status: 500 });
+  }
 
-  const updated = await queryOne<Record<string, unknown>>(`SELECT * FROM ${T} WHERE client_id = @id LIMIT 1`, { id: params.id });
-  if (!updated) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+  // BigQuery DML は反映に遅延があるため、リクエストのデータをそのまま返す
+  const response: Record<string, unknown> = { client_id: params.id };
+  if (body.name !== undefined) response.name = body.name;
+  if (body.slug !== undefined) response.slug = body.slug || null;
+  if (body.instagram_account_id !== undefined) response.instagram_account_id = body.instagram_account_id;
+  if (body.meta_ad_account_id !== undefined) response.meta_ad_account_id = body.meta_ad_account_id;
+  response.has_token = body.meta_access_token ? true : undefined;
 
-  const { meta_access_token, ...safe } = updated;
-  return NextResponse.json({ ...safe, has_token: !!meta_access_token });
+  return NextResponse.json(response);
 }
 
 export async function DELETE(

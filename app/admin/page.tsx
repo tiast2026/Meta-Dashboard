@@ -137,21 +137,39 @@ export default function AdminClientsPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error("更新に失敗しました");
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "更新に失敗しました");
+        }
+        const updated = await res.json();
+        // BigQuery DML は反映に遅延があるため、レスポンスでローカルstateを即時更新
+        setClients((prev) =>
+          prev.map((c) =>
+            c.client_id === editingClient.client_id
+              ? { ...c, ...updated }
+              : c
+          )
+        );
       } else {
         const res = await fetch("/api/clients", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error("作成に失敗しました");
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "作成に失敗しました");
+        }
+        const created = await res.json();
+        setClients((prev) => [created, ...prev]);
       }
 
       setDialogOpen(false);
       setForm(emptyForm);
       setEditingClient(null);
-      await fetchClients();
     } catch (err) {
+      const message = err instanceof Error ? err.message : "エラーが発生しました";
+      alert(message);
       console.error(err);
     } finally {
       setSubmitting(false);
