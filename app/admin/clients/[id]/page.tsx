@@ -71,6 +71,8 @@ export default function ClientDetailPage() {
   const [pageSelectOpen, setPageSelectOpen] = useState(false);
   const [permanentMessage, setPermanentMessage] = useState<{ type: string; text: string } | null>(null);
   const [fetchStates, setFetchStates] = useState<Record<string, { loading: boolean; message: string; success: boolean | null }>>({});
+  const [fetchAllRunning, setFetchAllRunning] = useState(false);
+  const [fetchAllProgress, setFetchAllProgress] = useState(0);
   const [pasteText, setPasteText] = useState("");
   const [pasteState, setPasteState] = useState<{ loading: boolean; message: string; success: boolean | null }>({ loading: false, message: "", success: null });
 
@@ -168,40 +170,59 @@ export default function ClientDetailPage() {
     }
   };
 
-  const apiFetchCards = [
-    { key: "fetch_ig", title: "Instagram日次データ", endpoint: "/api/import/fetch/instagram", icon: <Camera className="w-5 h-5 text-pink-600" />, bgColor: "bg-pink-50", needsIg: true },
-    { key: "fetch_ig_posts", title: "Instagram投稿データ", endpoint: "/api/import/fetch/instagram-posts", icon: <FileUp className="w-5 h-5 text-purple-600" />, bgColor: "bg-purple-50", needsIg: true },
-    { key: "fetch_tagged", title: "タグ付け投稿", endpoint: "/api/import/fetch/tagged-posts", icon: <Tag className="w-5 h-5 text-orange-600" />, bgColor: "bg-orange-50", needsIg: true },
-    { key: "fetch_ads", title: "Meta広告データ", endpoint: "/api/import/fetch/meta-ads", icon: <Megaphone className="w-5 h-5 text-blue-600" />, bgColor: "bg-blue-50", needsAd: true },
-  ];
-
-  const fetchFromApi = async (card: typeof apiFetchCards[0]) => {
-    setFetchStates((prev) => ({ ...prev, [card.key]: { loading: true, message: "", success: null } }));
-    try {
-      const res = await fetch(card.endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client_id: clientId }),
-      });
-      const data = await res.json();
-      setFetchStates((prev) => ({
-        ...prev,
-        [card.key]: {
-          loading: false,
-          message: res.ok ? (data.message || "取得完了") : (data.error || "取得に失敗しました"),
-          success: res.ok,
-        },
-      }));
-    } catch {
-      setFetchStates((prev) => ({ ...prev, [card.key]: { loading: false, message: "通信エラーが発生しました", success: false } }));
-    }
-  };
-
   const fetchAllFromApi = async () => {
-    for (const card of apiFetchCards) {
-      if (card.needsIg && !client?.instagram_account_id) continue;
-      if (card.needsAd && !client?.meta_ad_account_id) continue;
-      await fetchFromApi(card);
+    setFetchAllRunning(true);
+    setFetchAllProgress(0);
+    // Reset all states
+    setFetchStates({
+      ig_daily: { loading: true, message: "待機中...", success: null },
+      ig_posts: { loading: true, message: "待機中...", success: null },
+      ig_tagged: { loading: true, message: "待機中...", success: null },
+      meta_ads: { loading: true, message: "待機中...", success: null },
+    });
+
+    try {
+      const evtSource = new EventSource(`/api/import/fetch-all?client_id=${clientId}`);
+
+      evtSource.onmessage = (event) => {
+        const data = JSON.parse(event.data) as { step: string; status: string; message: string; progress?: number };
+
+        if (data.progress !== undefined) {
+          setFetchAllProgress(data.progress);
+        }
+
+        const stepKeyMap: Record<string, string> = {
+          ig_daily: "ig_daily",
+          ig_posts: "ig_posts",
+          ig_tagged: "ig_tagged",
+          meta_ads: "meta_ads",
+        };
+
+        const uiKey = stepKeyMap[data.step];
+        if (uiKey) {
+          setFetchStates((prev) => ({
+            ...prev,
+            [uiKey]: {
+              loading: data.status === "running",
+              message: data.message,
+              success: data.status === "done" ? true : data.status === "error" ? false : null,
+            },
+          }));
+        }
+
+        if (data.step === "complete") {
+          evtSource.close();
+          setFetchAllRunning(false);
+          setFetchAllProgress(100);
+        }
+      };
+
+      evtSource.onerror = () => {
+        evtSource.close();
+        setFetchAllRunning(false);
+      };
+    } catch {
+      setFetchAllRunning(false);
     }
   };
 
@@ -400,42 +421,55 @@ export default function ClientDetailPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><Download className="w-5 h-5 text-gray-400" />API データ取得</h3>
-              <p className="text-sm text-gray-500 mt-0.5">Meta Graph APIからデータを自動取得（IG: 最大2年 / 投稿: 全件 / 広告: 最大37ヶ月）</p>
+              <p className="text-sm text-gray-500 mt-0.5">Meta Graph APIからデータを自動取得（リアルタイム進捗表示）</p>
             </div>
-            <Button variant="outline" size="sm" onClick={fetchAllFromApi} disabled={Object.values(fetchStates).some((s) => s.loading)}>
-              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${Object.values(fetchStates).some((s) => s.loading) ? "animate-spin" : ""}`} />
-              一括取得
+            <Button onClick={fetchAllFromApi} disabled={fetchAllRunning} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+              <RefreshCw className={`w-4 h-4 mr-2 ${fetchAllRunning ? "animate-spin" : ""}`} />
+              {fetchAllRunning ? "取得中..." : "一括取得"}
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {apiFetchCards.map((card) => {
-              const state = fetchStates[card.key];
-              const disabled = (card.needsIg && !client.instagram_account_id) || (card.needsAd && !client.meta_ad_account_id);
+
+          {/* Progress bar */}
+          {fetchAllRunning && (
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-gray-600">進捗</span>
+                <span className="text-xs font-bold text-emerald-600">{fetchAllProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                <div className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2.5 rounded-full transition-all duration-500 ease-out" style={{ width: `${fetchAllProgress}%` }} />
+              </div>
+            </div>
+          )}
+
+          {/* Step status cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              { key: "ig_daily", title: "Instagram日次データ", icon: <Camera className="w-4 h-4 text-pink-600" />, bgColor: "bg-pink-50" },
+              { key: "ig_posts", title: "Instagram投稿データ", icon: <FileUp className="w-4 h-4 text-purple-600" />, bgColor: "bg-purple-50" },
+              { key: "ig_tagged", title: "タグ付け投稿", icon: <Tag className="w-4 h-4 text-orange-600" />, bgColor: "bg-orange-50" },
+              { key: "meta_ads", title: "Meta広告データ", icon: <Megaphone className="w-4 h-4 text-blue-600" />, bgColor: "bg-blue-50" },
+            ].map((item) => {
+              const state = fetchStates[item.key];
               return (
-                <div key={card.key} className={`rounded-xl border border-gray-200 p-4 ${disabled ? "opacity-50" : "hover:border-gray-300"} transition-colors`}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-10 h-10 rounded-lg ${card.bgColor} flex items-center justify-center`}>{card.icon}</div>
-                    <div className="flex-1"><h4 className="font-semibold text-gray-900 text-sm">{card.title}</h4></div>
-                  </div>
-                  <Button
-                    onClick={() => fetchFromApi(card)}
-                    disabled={disabled || state?.loading}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                    size="sm"
-                  >
-                    {state?.loading ? (
-                      <><div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white mr-2" />取得中...</>
-                    ) : (
-                      <><Download className="w-3.5 h-3.5 mr-2" />APIから取得</>
-                    )}
-                  </Button>
-                  {disabled && <p className="text-xs text-gray-400 mt-2">アカウントIDが未設定です</p>}
-                  {state?.message && (
-                    <div className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 mt-2 ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
-                      {state.success ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
-                      {state.message}
+                <div key={item.key} className="rounded-xl border border-gray-200 p-4 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-lg ${item.bgColor} flex items-center justify-center`}>{item.icon}</div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900 text-sm">{item.title}</h4>
+                      {state?.message && (
+                        <p className={`text-xs mt-0.5 truncate ${state.success === true ? "text-emerald-600" : state.success === false ? "text-red-500" : "text-gray-400"}`}>
+                          {state.message}
+                        </p>
+                      )}
                     </div>
-                  )}
+                    <div className="shrink-0">
+                      {state?.loading && <div className="animate-spin rounded-full h-5 w-5 border-2 border-emerald-500 border-t-transparent" />}
+                      {state?.success === true && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+                      {state?.success === false && <XCircle className="w-5 h-5 text-red-500" />}
+                      {!state && <div className="w-5 h-5 rounded-full bg-gray-100" />}
+                    </div>
+                  </div>
                 </div>
               );
             })}
