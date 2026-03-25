@@ -5,8 +5,12 @@ import { v4 as uuidv4 } from 'uuid';
 const T = table(DATASET_MASTER, 'clients');
 
 export async function GET() {
-  const clients = await queryRows(`SELECT * FROM ${T} ORDER BY created_at DESC`);
-  return NextResponse.json(clients);
+  const clients = await queryRows<Record<string, unknown>>(`SELECT * FROM ${T} ORDER BY created_at DESC`);
+  const safe = clients.map(({ meta_access_token, ...rest }) => ({
+    ...rest,
+    has_token: !!meta_access_token,
+  }));
+  return NextResponse.json(safe);
 }
 
 export async function POST(request: NextRequest) {
@@ -41,5 +45,6 @@ export async function POST(request: NextRequest) {
     instagram_account_id: instagram_account_id || null,
     meta_ad_account_id: meta_ad_account_id || null,
     share_token,
+    has_token: !!meta_access_token,
   }, { status: 201 });
 }
