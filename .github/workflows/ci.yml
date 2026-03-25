@@ -23,3 +23,7 @@ jobs:
         env:
           NEXTAUTH_SECRET: ci-secret
           NEXTAUTH_URL: http://localhost:3000
+
+      - name: Trigger Vercel Deploy
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
