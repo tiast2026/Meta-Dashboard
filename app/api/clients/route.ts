@@ -26,11 +26,20 @@ export async function POST(request: NextRequest) {
     {
       client_id,
       name,
-      slug: slug || null,
-      ig_id: instagram_account_id || null,
-      ad_id: meta_ad_account_id || null,
-      meta_token: meta_access_token || null,
+      slug: slug || '',
+      ig_id: instagram_account_id || '',
+      ad_id: meta_ad_account_id || '',
+      meta_token: meta_access_token || '',
       share_token,
+    },
+    {
+      client_id: 'STRING',
+      name: 'STRING',
+      slug: 'STRING',
+      ig_id: 'STRING',
+      ad_id: 'STRING',
+      meta_token: 'STRING',
+      share_token: 'STRING',
     }
   );
 

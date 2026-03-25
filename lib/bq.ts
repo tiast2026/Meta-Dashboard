@@ -48,7 +48,8 @@ export async function queryOne<T = Record<string, unknown>>(
 
 export async function runDML(
   sql: string,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
+  types?: Record<string, string>
 ): Promise<void> {
-  await getBQ().query({ query: sql, params });
+  await getBQ().query({ query: sql, params, types });
 }
