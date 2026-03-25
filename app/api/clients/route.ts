@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { queryRows, runDML, table, DATASET_MASTER, ensureClientColumns } from '@/lib/bq';
+import { queryRows, runDML, table, DATASET_MASTER } from '@/lib/bq';
 import { v4 as uuidv4 } from 'uuid';
 
 const T = table(DATASET_MASTER, 'clients');
 
 export async function GET() {
-  await ensureClientColumns();
   const clients = await queryRows(`SELECT * FROM ${T} ORDER BY created_at DESC`);
   return NextResponse.json(clients);
 }
@@ -26,11 +25,11 @@ export async function POST(request: NextRequest) {
      VALUES (@client_id, @name, @slug, @ig_id, @ad_id, @meta_token, @share_token, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
     {
       client_id,
-      name: String(name),
-      slug: String(slug || ''),
-      ig_id: String(instagram_account_id || ''),
-      ad_id: String(meta_ad_account_id || ''),
-      meta_token: String(meta_access_token || ''),
+      name,
+      slug: slug || null,
+      ig_id: instagram_account_id || null,
+      ad_id: meta_ad_account_id || null,
+      meta_token: meta_access_token || null,
       share_token,
     }
   );

@@ -15,6 +15,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+      {/* Sidebar */}
       <aside className="w-72 bg-slate-900 text-white flex flex-col shadow-xl">
         <div className="px-6 py-6">
           <div className="flex items-center gap-3">
@@ -29,7 +30,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         </div>
 
         <div className="px-4 mb-2">
-          <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Menu</p>
+          <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            Menu
+          </p>
         </div>
 
         <nav className="flex-1 px-4 space-y-1">
@@ -67,6 +70,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         </div>
       </aside>
 
+      {/* Main content */}
       <main className="flex-1 overflow-auto">
         <div className="max-w-6xl mx-auto px-8 py-8">{children}</div>
       </main>

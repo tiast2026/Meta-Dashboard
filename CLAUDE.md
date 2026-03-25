@@ -74,9 +74,3 @@ api/
 - @google-cloud/bigquery, @libsql/client
 - recharts (charts), shadcn/ui (UI components), tailwindcss
 - date-fns, zod, papaparse (CSV parsing)
-
-## Workflow Notes
-
-- PR作成後は自動でmainにマージすること
-- git pushが503エラーで失敗する場合は、GitHub MCP (`create_or_update_file`) を使ってファイルを直接プッシュする
-- mainブランチとのコンフリクトを避けるため、新しいブランチはmainから作成すること
