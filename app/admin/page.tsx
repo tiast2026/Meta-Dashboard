@@ -33,7 +33,6 @@ import {
   Megaphone,
   KeyRound,
   Shield,
-  AlertTriangle,
   Copy,
 } from "lucide-react";
 
