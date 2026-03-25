@@ -179,23 +179,27 @@ function DashboardContent() {
             <p className="text-sm text-gray-500">Analytics Dashboard</p>
           </div>
           <div className="flex items-center gap-4">
-            <Tabs value={tab} onValueChange={handleTabChange} className="hidden sm:block">
-              <TabsList>
-                <TabsTrigger value="instagram">Instagram分析</TabsTrigger>
-                <TabsTrigger value="ads">Meta広告</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="hidden sm:flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              <button onClick={() => handleTabChange("instagram")} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${tab === "instagram" ? "bg-white text-indigo-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                Instagram分析
+              </button>
+              <button onClick={() => handleTabChange("ads")} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${tab === "ads" ? "bg-white text-indigo-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                Meta広告
+              </button>
+            </div>
             <DateRangePicker from={from} to={to} onChange={handleDateChange} />
           </div>
         </div>
         {/* Mobile tabs */}
         <div className="sm:hidden px-4 pb-3">
-          <Tabs value={tab} onValueChange={handleTabChange}>
-            <TabsList className="w-full">
-              <TabsTrigger value="instagram" className="flex-1">Instagram分析</TabsTrigger>
-              <TabsTrigger value="ads" className="flex-1">Meta広告</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button onClick={() => handleTabChange("instagram")} className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${tab === "instagram" ? "bg-white text-indigo-700 shadow-sm" : "text-gray-500"}`}>
+              Instagram分析
+            </button>
+            <button onClick={() => handleTabChange("ads")} className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${tab === "ads" ? "bg-white text-indigo-700 shadow-sm" : "text-gray-500"}`}>
+              Meta広告
+            </button>
+          </div>
         </div>
       </header>
 

@@ -102,10 +102,33 @@ export async function GET(
       followers: prevLatestFollowers.rows[0]?.followers || 0,
     };
 
+    // Fallback: if daily insights are empty, compute KPI from posts
+    const hasDaily = daily.rows.length > 0;
+    let finalKpi = kpiResult;
+    if (!hasDaily) {
+      const postKpi = await db.execute({
+        sql: `SELECT
+          COUNT(*) as posts_count,
+          COALESCE(SUM(likes), 0) as likes,
+          COALESCE(SUM(comments), 0) as comments,
+          COALESCE(SUM(saves), 0) as saves,
+          COALESCE(SUM(shares), 0) as shares,
+          COALESCE(SUM(impressions), 0) as impressions,
+          COALESCE(SUM(reach), 0) as reach
+        FROM instagram_posts
+        WHERE client_id = ? AND posted_at >= ? AND posted_at <= ?`,
+        args: [clientId, from, to + 'T23:59:59'],
+      });
+      if (postKpi.rows[0]) {
+        const pRow = postKpi.rows[0] as Record<string, unknown>;
+        finalKpi = { ...pRow, followers: 0, follows: 0, interactions: 0 };
+      }
+    }
+
     return NextResponse.json({
       client: { name: clientName },
       daily: daily.rows,
-      kpi: kpiResult,
+      kpi: finalKpi,
       previous_kpi: previousKpiResult,
     });
   } catch (err) {

@@ -46,12 +46,18 @@ const productTypeLabels: Record<string, string> = {
   reels: "リール",
   STORY: "ストーリーズ",
   story: "ストーリーズ",
+  IMAGE: "画像",
+  VIDEO: "動画",
+  CAROUSEL_ALBUM: "カルーセル",
 }
 
 const productTypeVariants: Record<string, "default" | "secondary" | "outline"> = {
   FEED: "default",
   feed: "default",
   REELS: "secondary",
+  IMAGE: "default",
+  VIDEO: "secondary",
+  CAROUSEL_ALBUM: "outline",
   reels: "secondary",
   STORY: "outline",
   story: "outline",
@@ -109,8 +115,8 @@ export function PostTable({ posts }: PostTableProps) {
                   <p className="mt-0.5 text-xs text-gray-500">{format(parseISO(post.posted_at), "yyyy/MM/dd HH:mm")}</p>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={productTypeVariants[post.product_type] ?? "outline"}>
-                    {productTypeLabels[post.product_type] ?? post.product_type}
+                  <Badge variant={productTypeVariants[post.product_type || post.media_type] ?? "outline"}>
+                    {productTypeLabels[post.product_type || post.media_type] ?? (post.product_type || post.media_type || "-")}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-gray-900">{post.likes.toLocaleString()}</TableCell>
