@@ -35,9 +35,123 @@ export default function GuidePage() {
             <ul className="list-disc list-inside space-y-1.5">
               <li><strong>クライアント名</strong> - 会社名やプロジェクト名（日本語OK）</li>
               <li><strong>ローマ字表記</strong> - URL等で使用する英語表記（任意）</li>
-              <li><strong>Instagram アカウント ID</strong> - Instagram Business/Creator アカウントのID</li>
-              <li><strong>Meta 広告アカウント ID</strong> - act_ から始まる広告アカウントID</li>
+              <li><strong>Instagram アカウント ID</strong> - 下記「Instagram アカウント ID の取得方法」を参照</li>
+              <li><strong>Meta 広告アカウント ID</strong> - 下記「Meta 広告アカウント ID の取得方法」を参照</li>
             </ul>
+
+            {/* Instagram アカウント ID の取得方法 */}
+            <div className="mt-4 bg-indigo-50 rounded-lg p-4">
+              <h4 className="font-semibold text-indigo-800 mb-3">Instagram アカウント ID の取得方法</h4>
+              <p className="text-gray-700 mb-2">
+                Instagram アカウント ID は数字のみのIDです（例: 17841400123456789）。ユーザーネームとは異なります。
+              </p>
+              <p className="text-gray-700 font-medium mb-2">前提条件:</p>
+              <ul className="list-disc list-inside space-y-1 text-gray-600 mb-3">
+                <li>Instagramアカウントが<strong>ビジネスアカウント</strong>または<strong>クリエイターアカウント</strong>であること</li>
+                <li>Instagramアカウントが<strong>Facebookページにリンク</strong>されていること</li>
+              </ul>
+              <p className="text-gray-700 font-medium mb-2">方法1: Graph API Explorer を使う（推奨）</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-gray-600">
+                <li>
+                  <a
+                    href="https://developers.facebook.com/tools/explorer/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    Graph API Explorer <ExternalLink className="w-3 h-3" />
+                  </a>
+                  を開く
+                </li>
+                <li>右上のアプリセレクタで対象のアプリを選択</li>
+                <li>「Generate Access Token」でトークンを生成（権限: <code className="bg-indigo-100 px-1 py-0.5 rounded text-xs font-mono">instagram_basic</code>, <code className="bg-indigo-100 px-1 py-0.5 rounded text-xs font-mono">pages_show_list</code>）</li>
+                <li>
+                  クエリ欄に <code className="bg-indigo-100 px-1.5 py-0.5 rounded text-xs font-mono">me/accounts</code> と入力して「Submit」→ Facebookページ一覧が表示される
+                </li>
+                <li>
+                  表示されたページの <code className="bg-indigo-100 px-1 py-0.5 rounded text-xs font-mono">id</code> をコピーし、クエリ欄に <code className="bg-indigo-100 px-1.5 py-0.5 rounded text-xs font-mono">{'{ページID}'}?fields=instagram_business_account</code> と入力して「Submit」
+                </li>
+                <li>
+                  レスポンスの <code className="bg-indigo-100 px-1 py-0.5 rounded text-xs font-mono">instagram_business_account.id</code> が Instagram アカウント ID です
+                </li>
+              </ol>
+
+              <p className="text-gray-700 font-medium mt-3 mb-2">方法2: Meta Business Suite から確認</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-gray-600">
+                <li>
+                  <a
+                    href="https://business.facebook.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    Meta Business Suite <ExternalLink className="w-3 h-3" />
+                  </a>
+                  にログイン
+                </li>
+                <li>左メニュー「設定」→「アカウント」→「Instagramアカウント」を選択</li>
+                <li>表示されるURLの末尾、またはアカウント詳細画面に表示される数字IDがInstagramアカウントIDです</li>
+              </ol>
+            </div>
+
+            {/* Meta 広告アカウント ID の取得方法 */}
+            <div className="mt-4 bg-purple-50 rounded-lg p-4">
+              <h4 className="font-semibold text-purple-800 mb-3">Meta 広告アカウント ID の取得方法</h4>
+              <p className="text-gray-700 mb-2">
+                広告アカウントIDは <code className="bg-purple-100 px-1.5 py-0.5 rounded text-xs font-mono">act_</code> から始まる文字列です（例: act_123456789）。
+              </p>
+              <p className="text-gray-700 font-medium mb-2">方法1: Meta広告マネージャから確認（最も簡単）</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-gray-600">
+                <li>
+                  <a
+                    href="https://adsmanager.facebook.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    Meta広告マネージャ <ExternalLink className="w-3 h-3" />
+                  </a>
+                  を開く
+                </li>
+                <li>ブラウザのURLバーを確認 → <code className="bg-purple-100 px-1.5 py-0.5 rounded text-xs font-mono">act=123456789</code> の部分がアカウントIDです</li>
+                <li>入力時は <code className="bg-purple-100 px-1.5 py-0.5 rounded text-xs font-mono">act_123456789</code> の形式で入力してください</li>
+              </ol>
+
+              <p className="text-gray-700 font-medium mt-3 mb-2">方法2: Meta Business Suite の設定から確認</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-gray-600">
+                <li>
+                  <a
+                    href="https://business.facebook.com/settings/ad-accounts"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    ビジネス設定 → 広告アカウント <ExternalLink className="w-3 h-3" />
+                  </a>
+                  を開く
+                </li>
+                <li>対象の広告アカウントを選択すると、アカウントIDが表示されます</li>
+              </ol>
+
+              <p className="text-gray-700 font-medium mt-3 mb-2">方法3: Graph API Explorer を使う</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-gray-600">
+                <li>
+                  <a
+                    href="https://developers.facebook.com/tools/explorer/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    Graph API Explorer <ExternalLink className="w-3 h-3" />
+                  </a>
+                  でトークンを生成（権限: <code className="bg-purple-100 px-1 py-0.5 rounded text-xs font-mono">ads_read</code>）
+                </li>
+                <li>
+                  クエリ欄に <code className="bg-purple-100 px-1.5 py-0.5 rounded text-xs font-mono">me/adaccounts</code> と入力して「Submit」
+                </li>
+                <li>レスポンスの <code className="bg-purple-100 px-1 py-0.5 rounded text-xs font-mono">id</code> フィールド（act_から始まる値）が広告アカウントIDです</li>
+              </ol>
+            </div>
           </div>
         </div>
 
@@ -52,9 +166,10 @@ export default function GuidePage() {
             </h3>
           </div>
           <div className="ml-11 space-y-4 text-sm text-gray-600">
-            <div>
-              <h4 className="font-semibold text-gray-800 mb-2">Instagram Graph API トークン</h4>
-              <ol className="list-decimal list-inside space-y-1.5">
+            {/* Metaアプリの作成 */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h4 className="font-semibold text-gray-800 mb-3">Step 2-1: Metaアプリを作成する</h4>
+              <ol className="list-decimal list-inside space-y-2">
                 <li>
                   <a
                     href="https://developers.facebook.com/"
@@ -64,26 +179,86 @@ export default function GuidePage() {
                   >
                     Meta for Developers <ExternalLink className="w-3 h-3" />
                   </a>
-                  にログイン
+                  にFacebookアカウントでログイン
                 </li>
-                <li>アプリを作成（ビジネスタイプ推奨）</li>
-                <li>「Instagram Graph API」プロダクトを追加</li>
-                <li>Graph API Explorer でトークンを生成
-                  <ul className="list-disc list-inside ml-4 mt-1 text-gray-500">
-                    <li>必要な権限: instagram_basic, instagram_manage_insights, pages_show_list, pages_read_engagement</li>
-                  </ul>
+                <li>右上の「マイアプリ」→「アプリを作成」をクリック</li>
+                <li>ユースケースを選択 →「その他」→「次へ」</li>
+                <li>アプリタイプは「ビジネス」を選択 →「次へ」</li>
+                <li>アプリ名を入力（例: Instagram Dashboard）→「アプリを作成」</li>
+                <li>
+                  アプリダッシュボードで「Instagram Graph API」の「設定」をクリックしてプロダクトを追加
                 </li>
-                <li>生成されたトークンをクライアント設定に貼り付け</li>
               </ol>
             </div>
 
-            <div>
-              <h4 className="font-semibold text-gray-800 mb-2">Meta広告 API トークン</h4>
-              <ol className="list-decimal list-inside space-y-1.5">
-                <li>同じアプリの Graph API Explorer を使用</li>
-                <li>追加の権限: ads_read, ads_management</li>
-                <li>生成されたトークンをクライアント設定に貼り付け</li>
+            {/* Instagram Graph API トークン */}
+            <div className="bg-emerald-50 rounded-lg p-4">
+              <h4 className="font-semibold text-emerald-800 mb-3">Step 2-2: Instagram Graph API トークンを取得する</h4>
+              <ol className="list-decimal list-inside space-y-2">
+                <li>
+                  <a
+                    href="https://developers.facebook.com/tools/explorer/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    Graph API Explorer <ExternalLink className="w-3 h-3" />
+                  </a>
+                  を開く
+                </li>
+                <li>右上の「Meta App」ドロップダウンで、Step 2-1 で作成したアプリを選択</li>
+                <li>「User or Page」ドロップダウンで「Get User Access Token」を選択</li>
+                <li>
+                  「Permissions」をクリックし、以下の権限にチェックを入れる:
+                  <div className="mt-2 ml-4 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    <code className="bg-emerald-100 px-2 py-1 rounded text-xs font-mono">instagram_basic</code>
+                    <code className="bg-emerald-100 px-2 py-1 rounded text-xs font-mono">instagram_manage_insights</code>
+                    <code className="bg-emerald-100 px-2 py-1 rounded text-xs font-mono">pages_show_list</code>
+                    <code className="bg-emerald-100 px-2 py-1 rounded text-xs font-mono">pages_read_engagement</code>
+                    <code className="bg-emerald-100 px-2 py-1 rounded text-xs font-mono">business_management</code>
+                  </div>
+                </li>
+                <li>「Generate Access Token」をクリック → Facebookログインで許可</li>
+                <li>表示されたトークン（長い英数字の文字列）をコピー</li>
+                <li>このダッシュボードのクライアント詳細ページに貼り付けて保存</li>
               </ol>
+              <div className="flex items-start gap-2 bg-amber-50 rounded-lg p-3 mt-3">
+                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-amber-700 text-xs">
+                  ここで取得するトークンは<strong>短期トークン（約1〜2時間有効）</strong>です。Step 4 で無期限トークンに変換してください。
+                </p>
+              </div>
+            </div>
+
+            {/* Meta広告 API トークン */}
+            <div className="bg-purple-50 rounded-lg p-4">
+              <h4 className="font-semibold text-purple-800 mb-3">Step 2-3: Meta広告 API トークンを取得する（広告データが必要な場合）</h4>
+              <ol className="list-decimal list-inside space-y-2">
+                <li>
+                  同じ
+                  <a
+                    href="https://developers.facebook.com/tools/explorer/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    Graph API Explorer <ExternalLink className="w-3 h-3" />
+                  </a>
+                  を使用
+                </li>
+                <li>
+                  追加で以下の権限にもチェックを入れる:
+                  <div className="mt-2 ml-4 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    <code className="bg-purple-100 px-2 py-1 rounded text-xs font-mono">ads_read</code>
+                    <code className="bg-purple-100 px-2 py-1 rounded text-xs font-mono">ads_management</code>
+                  </div>
+                </li>
+                <li>「Generate Access Token」をクリックして新しいトークンを生成</li>
+                <li>生成されたトークンをクライアント設定の広告トークン欄に貼り付け</li>
+              </ol>
+              <p className="text-purple-600 text-xs mt-2">
+                ※ Instagram と Meta広告を同じトークンで管理する場合は、Step 2-2 で広告権限も含めて生成すれば1つのトークンで対応可能です。
+              </p>
             </div>
           </div>
         </div>
