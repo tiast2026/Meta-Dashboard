@@ -74,3 +74,20 @@ api/
 - @google-cloud/bigquery, @libsql/client
 - recharts (charts), shadcn/ui (UI components), tailwindcss
 - date-fns, zod, papaparse (CSV parsing)
+
+## Vercel Deploy Notes
+
+### vercel.json に環境変数を書かないこと
+
+`vercel.json` の `env` で `"@secret-name"` 形式のVercel Secret参照を使うと、そのSecretがVercelに存在しない場合 **全デプロイがサイレントにブロックされる**。Git連携・Deploy Hook どちらもエラー表示なしで失敗する。
+
+**対策:**
+- 環境変数は **Vercelダッシュボード > Settings > Environment Variables** で設定する
+- `vercel.json` には `env` セクションを書かない
+- デプロイが原因不明で止まった場合は `npx vercel --prod` (CLI) で直接デプロイしてエラーメッセージを確認する
+
+### デプロイ方法
+
+- mainへのpush → GitHub Actions CI成功後に Deploy Hook で自動デプロイ
+- Deploy Hook URL は GitHub Secret `VERCEL_DEPLOY_HOOK` に保存済み
+- Git連携が壊れた場合は Vercel CLI (`npx vercel --prod --token <TOKEN> --scope tiast2026s-projects`) で直接デプロイ
