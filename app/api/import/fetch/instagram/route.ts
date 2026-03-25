@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Instagram アカウントIDが設定されていません' }, { status: 400 });
     }
 
-    // Default: max 2 years (no since/until = full history)
     const insights = await fetchIgAccountInsights(igId, token, since, until);
 
     if (insights.length === 0) {
