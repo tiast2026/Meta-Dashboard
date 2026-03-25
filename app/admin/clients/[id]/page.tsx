@@ -27,6 +27,8 @@ import {
   Check,
   ExternalLink,
   Infinity,
+  Download,
+  RefreshCw,
 } from "lucide-react";
 
 interface Client {
@@ -85,6 +87,7 @@ export default function ClientDetailPage() {
   const [pages, setPages] = useState<{ id: string; name: string }[] | null>(null);
   const [pageSelectOpen, setPageSelectOpen] = useState(false);
   const [permanentMessage, setPermanentMessage] = useState<{ type: string; text: string } | null>(null);
+  const [fetchStates, setFetchStates] = useState<Record<string, { loading: boolean; message: string; success: boolean | null }>>({});
 
   const fetchClient = useCallback(async () => {
     try {
@@ -177,6 +180,43 @@ export default function ClientDetailPage() {
       setPermanentMessage({ type: "error", text: "通信エラーが発生しました" });
     } finally {
       setPermanentTokenLoading(false);
+    }
+  };
+
+  const apiFetchCards = [
+    { key: "fetch_ig", title: "Instagram日次データ", endpoint: "/api/import/fetch/instagram", icon: <Camera className="w-5 h-5 text-pink-600" />, bgColor: "bg-pink-50", needsIg: true },
+    { key: "fetch_ig_posts", title: "Instagram投稿データ", endpoint: "/api/import/fetch/instagram-posts", icon: <FileUp className="w-5 h-5 text-purple-600" />, bgColor: "bg-purple-50", needsIg: true },
+    { key: "fetch_tagged", title: "タグ付け投稿", endpoint: "/api/import/fetch/tagged-posts", icon: <Tag className="w-5 h-5 text-orange-600" />, bgColor: "bg-orange-50", needsIg: true },
+    { key: "fetch_ads", title: "Meta広告データ", endpoint: "/api/import/fetch/meta-ads", icon: <Megaphone className="w-5 h-5 text-blue-600" />, bgColor: "bg-blue-50", needsAd: true },
+  ];
+
+  const fetchFromApi = async (card: typeof apiFetchCards[0]) => {
+    setFetchStates((prev) => ({ ...prev, [card.key]: { loading: true, message: "", success: null } }));
+    try {
+      const res = await fetch(card.endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      const data = await res.json();
+      setFetchStates((prev) => ({
+        ...prev,
+        [card.key]: {
+          loading: false,
+          message: res.ok ? (data.message || "取得完了") : (data.error || "取得に失敗しました"),
+          success: res.ok,
+        },
+      }));
+    } catch {
+      setFetchStates((prev) => ({ ...prev, [card.key]: { loading: false, message: "通信エラーが発生しました", success: false } }));
+    }
+  };
+
+  const fetchAllFromApi = async () => {
+    for (const card of apiFetchCards) {
+      if (card.needsIg && !client?.instagram_account_id) continue;
+      if (card.needsAd && !client?.meta_ad_account_id) continue;
+      await fetchFromApi(card);
     }
   };
 
@@ -372,6 +412,54 @@ export default function ClientDetailPage() {
           </div>
         )}
       </div>
+
+      {client.has_token && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><Download className="w-5 h-5 text-gray-400" />API データ取得</h3>
+              <p className="text-sm text-gray-500 mt-0.5">Meta Graph APIからデータを自動取得します（直近30日分）</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchAllFromApi} disabled={Object.values(fetchStates).some((s) => s.loading)}>
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${Object.values(fetchStates).some((s) => s.loading) ? "animate-spin" : ""}`} />
+              一括取得
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {apiFetchCards.map((card) => {
+              const state = fetchStates[card.key];
+              const disabled = (card.needsIg && !client.instagram_account_id) || (card.needsAd && !client.meta_ad_account_id);
+              return (
+                <div key={card.key} className={`rounded-xl border border-gray-200 p-4 ${disabled ? "opacity-50" : "hover:border-gray-300"} transition-colors`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-10 h-10 rounded-lg ${card.bgColor} flex items-center justify-center`}>{card.icon}</div>
+                    <div className="flex-1"><h4 className="font-semibold text-gray-900 text-sm">{card.title}</h4></div>
+                  </div>
+                  <Button
+                    onClick={() => fetchFromApi(card)}
+                    disabled={disabled || state?.loading}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                    size="sm"
+                  >
+                    {state?.loading ? (
+                      <><div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white mr-2" />取得中...</>
+                    ) : (
+                      <><Download className="w-3.5 h-3.5 mr-2" />APIから取得</>
+                    )}
+                  </Button>
+                  {disabled && <p className="text-xs text-gray-400 mt-2">アカウントIDが未設定です</p>}
+                  {state?.message && (
+                    <div className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 mt-2 ${state.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+                      {state.success ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
+                      {state.message}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
         <div className="mb-6">
