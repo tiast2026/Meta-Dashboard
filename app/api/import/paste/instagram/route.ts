@@ -108,7 +108,7 @@ function parseText(text: string): ParsedRow[] {
           const match = val.match(DATE_RE);
           if (match) row.date = normalizeDate(match[1]);
         } else {
-          (row as Record<string, unknown>)[field] = parseNumber(val);
+          (row as unknown as Record<string, unknown>)[field] = parseNumber(val);
         }
       }
 

@@ -20,9 +20,14 @@ const ADS_CHUNK_DAYS = 30;
 const POSTS_PAGE_LIMIT = 50;
 const POSTS_MAX_PAGES = 20; // safety limit: 50 * 20 = 1000 posts max
 
+interface MetaPaging {
+  cursors?: { after?: string };
+  next?: string;
+}
+
 interface MetaApiResponse<T = unknown> {
   data?: T[];
-  paging?: { cursors?: { after?: string }; next?: string };
+  paging?: MetaPaging;
   error?: { message: string; type: string; code: number };
   [key: string]: unknown;
 }
@@ -142,7 +147,7 @@ export async function fetchIgPosts(
   let page = 0;
 
   while (nextUrl && page < POSTS_MAX_PAGES) {
-    const res = await metaFetch<Record<string, unknown>>(nextUrl);
+    const res: MetaApiResponse<Record<string, unknown>> = await metaFetch<Record<string, unknown>>(nextUrl);
     if (!res.data || res.data.length === 0) break;
 
     for (const media of res.data) {
@@ -180,7 +185,7 @@ export async function fetchIgPosts(
       });
     }
 
-    nextUrl = res.paging?.next || null;
+    nextUrl = (res.paging?.next as string) || null;
     page++;
   }
 
@@ -210,7 +215,7 @@ export async function fetchIgTaggedPosts(
   let page = 0;
 
   while (nextUrl && page < POSTS_MAX_PAGES) {
-    const res = await metaFetch<Record<string, unknown>>(nextUrl);
+    const res: MetaApiResponse<Record<string, unknown>> = await metaFetch<Record<string, unknown>>(nextUrl);
     if (!res.data || res.data.length === 0) break;
 
     for (const m of res.data) {
@@ -226,7 +231,7 @@ export async function fetchIgTaggedPosts(
       });
     }
 
-    nextUrl = res.paging?.next || null;
+    nextUrl = (res.paging?.next as string) || null;
     page++;
   }
 
@@ -273,7 +278,7 @@ export async function fetchMetaAds(
       let page = 0;
 
       while (nextUrl && page < 10) {
-        const res = await metaFetch<Record<string, unknown>>(nextUrl);
+        const res: MetaApiResponse<Record<string, unknown>> = await metaFetch<Record<string, unknown>>(nextUrl);
         if (!res.data || res.data.length === 0) break;
 
         for (const row of res.data) {
@@ -304,7 +309,7 @@ export async function fetchMetaAds(
           });
         }
 
-        nextUrl = res.paging?.next || null;
+        nextUrl = (res.paging?.next as string) || null;
         page++;
       }
     } catch (err) {
