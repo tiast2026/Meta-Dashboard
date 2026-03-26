@@ -1,407 +1,113 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { format, subDays } from "date-fns";
-import {
-  Eye,
-  Users,
-  Heart,
-  UserPlus,
-  MousePointerClick,
-  Target,
-} from "lucide-react";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import { Suspense } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { Eye, Users, Heart, UserPlus, Target, Megaphone, ArrowRight } from "lucide-react";
+import { useDashboard, useFetchData } from "@/lib/use-dashboard";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { KpiCard } from "@/components/dashboard/kpi-card";
-import { FollowerTrendChart } from "@/components/dashboard/follower-trend-chart";
-import { DailyTrendChart } from "@/components/dashboard/daily-trend-chart";
-import { PostTable } from "@/components/dashboard/post-table";
-import { CampaignTable } from "@/components/dashboard/campaign-table";
-import { PlatformBreakdown } from "@/components/dashboard/platform-breakdown";
-import { TaggedPostsTable } from "@/components/dashboard/tagged-posts-table";
-import { EngagementChart } from "@/components/dashboard/engagement-chart";
 
 function calcChange(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;
   return ((current - previous) / previous) * 100;
 }
 
-function DashboardContent() {
-  const params = useParams();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const token = params.token as string;
-
-  const tab = searchParams.get("tab") || "instagram";
-  const defaultTo = format(new Date(), "yyyy-MM-dd");
-  const defaultFrom = format(subDays(new Date(), 30), "yyyy-MM-dd");
-  const from = searchParams.get("from") || defaultFrom;
-  const to = searchParams.get("to") || defaultTo;
-
-  const [clientName, setClientName] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Instagram state
-  const [igKpi, setIgKpi] = useState<Record<string, number>>({});
-  const [igPrevKpi, setIgPrevKpi] = useState<Record<string, number>>({});
-  const [igDaily, setIgDaily] = useState<Array<Record<string, unknown>>>([]);
-  const [posts, setPosts] = useState<Array<Record<string, unknown>>>([]);
-  const [taggedPosts, setTaggedPosts] = useState<Array<Record<string, unknown>>>([]);
-
-  // Meta Ads state
-  const [adsKpi, setAdsKpi] = useState<Record<string, number>>({});
-  const [adsPrevKpi, setAdsPrevKpi] = useState<Record<string, number>>({});
-  const [adsDaily, setAdsDaily] = useState<Array<Record<string, unknown>>>([]);
-  const [campaigns, setCampaigns] = useState<Array<Record<string, unknown>>>([]);
-  const [platforms, setPlatforms] = useState<Array<Record<string, unknown>>>([]);
-
-  const updateSearchParams = useCallback(
-    (updates: Record<string, string>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      Object.entries(updates).forEach(([key, value]) => {
-        params.set(key, value);
-      });
-      router.push(`/dashboard/${token}?${params.toString()}`);
-    },
-    [searchParams, router, token]
-  );
-
-  const handleDateChange = useCallback(
-    (newFrom: string, newTo: string) => {
-      updateSearchParams({ from: newFrom, to: newTo });
-    },
-    [updateSearchParams]
-  );
-
-  const handleTabChange = useCallback(
-    (value: string) => {
-      updateSearchParams({ tab: value });
-    },
-    [updateSearchParams]
-  );
-
-  // Fetch Instagram data
-  useEffect(() => {
-    if (tab !== "instagram") return;
-    setLoading(true);
-    setError(null);
-
-    const fetchData = async () => {
-      try {
-        const [igRes, postsRes, taggedRes] = await Promise.all([
-          fetch(`/api/dashboard/${token}/instagram?from=${from}&to=${to}`),
-          fetch(`/api/dashboard/${token}/posts?from=${from}&to=${to}`),
-          fetch(`/api/dashboard/${token}/tagged-posts?from=${from}&to=${to}`),
-        ]);
-
-        if (!igRes.ok) throw new Error("Instagram data fetch failed");
-
-        const igData = await igRes.json();
-        setClientName(igData.client?.name || "");
-        setIgKpi(igData.kpi || {});
-        setIgPrevKpi(igData.previous_kpi || {});
-        setIgDaily(igData.daily || []);
-
-        if (postsRes.ok) {
-          const postsData = await postsRes.json();
-          setPosts(postsData.posts || []);
-        }
-
-        if (taggedRes.ok) {
-          const taggedData = await taggedRes.json();
-          setTaggedPosts(taggedData.posts || []);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "データの取得に失敗しました");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [token, from, to, tab]);
-
-  // Fetch Meta Ads data
-  useEffect(() => {
-    if (tab !== "ads") return;
-    setLoading(true);
-    setError(null);
-
-    const fetchData = async () => {
-      try {
-        const res = await fetch(
-          `/api/dashboard/${token}/meta-ads?from=${from}&to=${to}`
-        );
-        if (!res.ok) throw new Error("Meta Ads data fetch failed");
-
-        const data = await res.json();
-        if (!clientName) setClientName(data.client?.name || "");
-        setAdsKpi(data.kpi || {});
-        setAdsPrevKpi(data.previous_kpi || {});
-        setAdsDaily(data.daily || []);
-        setCampaigns(data.campaigns || []);
-        setPlatforms(data.platforms || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "データの取得に失敗しました");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [token, from, to, tab, clientName]);
-
-  // Derive engagement chart data from daily
-  const engagementData = igDaily.map((d: Record<string, unknown>) => ({
-    date: d.date as string,
-    likes: (d.likes as number) || 0,
-    comments: (d.comments as number) || 0,
-    saves: (d.saves as number) || 0,
-    shares: (d.shares as number) || 0,
-  }));
-
-  const followerData = igDaily.map((d: Record<string, unknown>) => ({
-    date: d.date as string,
-    followers: (d.followers as number) || 0,
-  }));
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              {clientName || "ダッシュボード"}
-            </h1>
-            <p className="text-sm text-gray-500">Analytics Dashboard</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-              <button onClick={() => handleTabChange("instagram")} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${tab === "instagram" ? "bg-white text-indigo-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-                Instagram分析
-              </button>
-              <button onClick={() => handleTabChange("ads")} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${tab === "ads" ? "bg-white text-indigo-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-                Meta広告
-              </button>
-            </div>
-            <DateRangePicker from={from} to={to} onChange={handleDateChange} />
-          </div>
-        </div>
-        {/* Mobile tabs */}
-        <div className="sm:hidden px-4 pb-3">
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-            <button onClick={() => handleTabChange("instagram")} className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${tab === "instagram" ? "bg-white text-indigo-700 shadow-sm" : "text-gray-500"}`}>
-              Instagram分析
-            </button>
-            <button onClick={() => handleTabChange("ads")} className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${tab === "ads" ? "bg-white text-indigo-700 shadow-sm" : "text-gray-500"}`}>
-              Meta広告
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            {error}
-          </div>
-        )}
-
-        <Tabs value={tab} onValueChange={handleTabChange}>
-          {/* Instagram Tab */}
-          <TabsContent value="instagram">
-            {loading ? (
-              <LoadingSkeleton />
-            ) : (
-              <div className="space-y-8">
-                {/* KPI Grid */}
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-                  <KpiCard
-                    title="フォロワー"
-                    value={igKpi.followers || 0}
-                    change={calcChange(
-                      igKpi.followers || 0,
-                      igPrevKpi.followers || 0
-                    )}
-                    icon={<Users className="h-4 w-4" />}
-                    suffix="人"
-                  />
-                  <KpiCard
-                    title="インプレッション"
-                    value={igKpi.impressions || 0}
-                    change={calcChange(
-                      igKpi.impressions || 0,
-                      igPrevKpi.impressions || 0
-                    )}
-                    icon={<Eye className="h-4 w-4" />}
-                  />
-                  <KpiCard
-                    title="リーチ"
-                    value={igKpi.reach || 0}
-                    change={calcChange(
-                      igKpi.reach || 0,
-                      igPrevKpi.reach || 0
-                    )}
-                    icon={<Target className="h-4 w-4" />}
-                  />
-                  <KpiCard
-                    title="いいね"
-                    value={igKpi.likes || 0}
-                    change={calcChange(
-                      igKpi.likes || 0,
-                      igPrevKpi.likes || 0
-                    )}
-                    icon={<Heart className="h-4 w-4" />}
-                  />
-                  <KpiCard
-                    title="フォロー増加"
-                    value={igKpi.follows || 0}
-                    change={calcChange(
-                      igKpi.follows || 0,
-                      igPrevKpi.follows || 0
-                    )}
-                    icon={<UserPlus className="h-4 w-4" />}
-                  />
-                </div>
-
-                {/* Charts */}
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <FollowerTrendChart data={followerData} />
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <EngagementChart data={engagementData} />
-                  </div>
-                </div>
-
-                {/* Post Performance Table */}
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <PostTable posts={posts as never[]} />
-                </div>
-
-                {/* Tagged Posts Table */}
-                {taggedPosts.length > 0 && (
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <TaggedPostsTable posts={taggedPosts as never[]} />
-                  </div>
-                )}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Meta Ads Tab */}
-          <TabsContent value="ads">
-            {loading ? (
-              <LoadingSkeleton />
-            ) : (
-              <div className="space-y-8">
-                {/* KPI Grid */}
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-                  <KpiCard
-                    title="消化金額"
-                    value={Math.round(adsKpi.spend || 0)}
-                    change={calcChange(
-                      adsKpi.spend || 0,
-                      adsPrevKpi.spend || 0
-                    )}
-                    prefix="¥"
-                  />
-                  <KpiCard
-                    title="インプレッション"
-                    value={adsKpi.impressions || 0}
-                    change={calcChange(
-                      adsKpi.impressions || 0,
-                      adsPrevKpi.impressions || 0
-                    )}
-                    icon={<Eye className="h-4 w-4" />}
-                  />
-                  <KpiCard
-                    title="リーチ"
-                    value={adsKpi.reach || 0}
-                    change={calcChange(
-                      adsKpi.reach || 0,
-                      adsPrevKpi.reach || 0
-                    )}
-                    icon={<Target className="h-4 w-4" />}
-                  />
-                  <KpiCard
-                    title="クリック"
-                    value={adsKpi.clicks || 0}
-                    change={calcChange(
-                      adsKpi.clicks || 0,
-                      adsPrevKpi.clicks || 0
-                    )}
-                    icon={<MousePointerClick className="h-4 w-4" />}
-                  />
-                  <KpiCard
-                    title="CPC"
-                    value={Math.round(adsKpi.cpc || 0)}
-                    change={calcChange(
-                      adsKpi.cpc || 0,
-                      adsPrevKpi.cpc || 0
-                    )}
-                    prefix="¥"
-                  />
-                </div>
-
-                {/* Daily Trend Chart */}
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <DailyTrendChart data={adsDaily as never[]} />
-                </div>
-
-                {/* Campaign Table */}
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <CampaignTable campaigns={campaigns as never[]} />
-                </div>
-
-                {/* Platform Breakdown */}
-                {platforms.length > 0 && (
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <PlatformBreakdown data={platforms as never[]} />
-                  </div>
-                )}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
-  );
+interface IgData {
+  client: { name: string };
+  kpi: Record<string, number>;
+  previous_kpi: Record<string, number>;
+  daily: unknown[];
 }
 
-function LoadingSkeleton() {
+interface AdsData {
+  kpi: Record<string, number>;
+  previous_kpi: Record<string, number>;
+}
+
+function DashboardContent() {
+  const { token, from, to, handleDateChange } = useDashboard();
+  const params = useParams();
+  const basePath = `/dashboard/${params.token}`;
+
+  const { data: igData, loading: igLoading } = useFetchData<IgData>(
+    `/api/dashboard/${token}/instagram?from=${from}&to=${to}`
+  );
+  const { data: adsData, loading: adsLoading } = useFetchData<AdsData>(
+    `/api/dashboard/${token}/meta-ads?from=${from}&to=${to}`
+  );
+
+  const igKpi = igData?.kpi || {};
+  const igPrev = igData?.previous_kpi || {};
+  const adsKpi = adsData?.kpi || {};
+  const adsPrev = adsData?.previous_kpi || {};
+
+  const loading = igLoading || adsLoading;
+
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-[130px] animate-pulse rounded-xl bg-gray-100 border border-gray-200"
-          />
-        ))}
+    <div>
+      <PageHeader
+        title="アカウント概要"
+        clientName={igData?.client?.name}
+        from={from}
+        to={to}
+        onDateChange={handleDateChange}
+      />
+
+      <div className="px-6 py-6 space-y-8">
+        {loading ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-[100px] animate-pulse rounded-xl bg-gray-100" />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Instagram KPIs */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900">Instagram</h2>
+                <Link href={`${basePath}/posts?from=${from}&to=${to}`} className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                  詳細を見る <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+                <KpiCard title="フォロワー" value={igKpi.followers || 0} change={calcChange(igKpi.followers || 0, igPrev.followers || 0)} icon={<Users className="h-4 w-4" />} suffix="人" />
+                <KpiCard title="インプレッション" value={igKpi.impressions || 0} change={calcChange(igKpi.impressions || 0, igPrev.impressions || 0)} icon={<Eye className="h-4 w-4" />} />
+                <KpiCard title="リーチ" value={igKpi.reach || 0} change={calcChange(igKpi.reach || 0, igPrev.reach || 0)} icon={<Target className="h-4 w-4" />} />
+                <KpiCard title="いいね" value={igKpi.likes || 0} change={calcChange(igKpi.likes || 0, igPrev.likes || 0)} icon={<Heart className="h-4 w-4" />} />
+                <KpiCard title="フォロー増加" value={igKpi.follows || 0} change={calcChange(igKpi.follows || 0, igPrev.follows || 0)} icon={<UserPlus className="h-4 w-4" />} />
+              </div>
+            </div>
+
+            {/* Meta Ads KPIs */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900">Meta広告</h2>
+                <Link href={`${basePath}/ads?from=${from}&to=${to}`} className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                  詳細を見る <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+                <KpiCard title="消化金額" value={Math.round(Number(adsKpi.spend) || 0)} change={calcChange(Number(adsKpi.spend) || 0, Number(adsPrev.spend) || 0)} prefix="¥" />
+                <KpiCard title="インプレッション" value={Number(adsKpi.impressions) || 0} change={calcChange(Number(adsKpi.impressions) || 0, Number(adsPrev.impressions) || 0)} icon={<Eye className="h-4 w-4" />} />
+                <KpiCard title="リーチ" value={Number(adsKpi.reach) || 0} change={calcChange(Number(adsKpi.reach) || 0, Number(adsPrev.reach) || 0)} icon={<Target className="h-4 w-4" />} />
+                <KpiCard title="クリック" value={Number(adsKpi.clicks) || 0} change={calcChange(Number(adsKpi.clicks) || 0, Number(adsPrev.clicks) || 0)} icon={<Megaphone className="h-4 w-4" />} />
+                <KpiCard title="CPC" value={Math.round(Number(adsKpi.cpc) || 0)} change={calcChange(Number(adsKpi.cpc) || 0, Number(adsPrev.cpc) || 0)} prefix="¥" />
+              </div>
+            </div>
+          </>
+        )}
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="h-[380px] animate-pulse rounded-xl bg-gray-100 border border-gray-200" />
-        <div className="h-[380px] animate-pulse rounded-xl bg-gray-100 border border-gray-200" />
-      </div>
-      <div className="h-[400px] animate-pulse rounded-xl bg-gray-100 border border-gray-200" />
     </div>
   );
 }
 
 export default function DashboardPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="text-muted-foreground">読み込み中...</div>
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="text-gray-400">読み込み中...</div></div>}>
       <DashboardContent />
     </Suspense>
   );
