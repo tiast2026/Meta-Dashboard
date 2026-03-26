@@ -31,6 +31,7 @@ interface Post {
   comments: number
   saves: number
   shares: number
+  video_views: number
 }
 
 interface PostTableProps {
@@ -95,6 +96,7 @@ export function PostTable({ posts }: PostTableProps) {
               <TableHead className="text-right text-gray-500">いいね</TableHead>
               <TableHead className="text-right text-gray-500">コメント</TableHead>
               <TableHead className="text-right text-gray-500">保存</TableHead>
+              <TableHead className="text-right text-gray-500">再生数</TableHead>
               <TableHead className="text-right pr-4 text-gray-500">ER</TableHead>
             </TableRow>
           </TableHeader>
@@ -122,12 +124,13 @@ export function PostTable({ posts }: PostTableProps) {
                 <TableCell className="text-right tabular-nums text-gray-900">{post.likes.toLocaleString()}</TableCell>
                 <TableCell className="text-right tabular-nums text-gray-900">{post.comments.toLocaleString()}</TableCell>
                 <TableCell className="text-right tabular-nums text-gray-900">{post.saves.toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums text-gray-900">{(post.video_views || 0) > 0 ? post.video_views.toLocaleString() : "-"}</TableCell>
                 <TableCell className="pr-4 text-right tabular-nums font-medium text-gray-900">{calcER(post).toFixed(2)}%</TableCell>
               </TableRow>
             ))}
             {paginatedPosts.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-gray-500">投稿データがありません</TableCell>
+                <TableCell colSpan={8} className="h-24 text-center text-gray-500">投稿データがありません</TableCell>
               </TableRow>
             )}
           </TableBody>

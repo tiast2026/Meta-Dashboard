@@ -52,6 +52,13 @@ export async function ensureDb() {
     }
   }
 
+  // Add video_views column if missing
+  try {
+    await db.execute('ALTER TABLE instagram_posts ADD COLUMN video_views INTEGER DEFAULT 0');
+  } catch {
+    // column already exists
+  }
+
   const schemaPath = path.join(process.cwd(), 'lib', 'schema.sql');
   const schema = fs.readFileSync(schemaPath, 'utf-8');
   const statements = schema

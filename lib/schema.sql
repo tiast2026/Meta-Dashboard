@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS instagram_posts (
   comments INTEGER DEFAULT 0,
   saves INTEGER DEFAULT 0,
   shares INTEGER DEFAULT 0,
+  video_views INTEGER DEFAULT 0,
   UNIQUE(client_id, ig_post_id)
 );
 

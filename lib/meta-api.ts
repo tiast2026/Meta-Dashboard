@@ -132,13 +132,14 @@ export interface IgPost {
   comments: number;
   saves: number;
   shares: number;
+  video_views: number;
 }
 
 export async function fetchIgPosts(
   igAccountId: string,
   token: string,
 ): Promise<IgPost[]> {
-  const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count';
+  const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,video_views';
   const posts: IgPost[] = [];
   let nextUrl: string | null = `${BASE_URL}/${igAccountId}/media?fields=${fields}&limit=${POSTS_PAGE_LIMIT}&access_token=${token}`;
   let page = 0;
@@ -161,6 +162,7 @@ export async function fetchIgPosts(
         comments: Number(media.comments_count) || 0,
         saves: 0,
         shares: 0,
+        video_views: Number(media.video_views) || 0,
       });
     }
 

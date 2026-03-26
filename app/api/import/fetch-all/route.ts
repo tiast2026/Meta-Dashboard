@@ -89,12 +89,13 @@ export async function GET(request: NextRequest) {
             const stmts: InStatement[] = posts.map((post) => ({
               sql: `INSERT OR REPLACE INTO instagram_posts
                 (client_id, ig_post_id, caption, media_type, media_url, permalink, posted_at,
-                 impressions, reach, likes, comments, saves, shares)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 impressions, reach, likes, comments, saves, shares, video_views)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               args: [
                 clientId, post.ig_post_id, post.caption, post.media_type,
                 post.media_url, post.permalink, post.posted_at,
                 post.impressions, post.reach, post.likes, post.comments, post.saves, post.shares,
+                post.video_views,
               ],
             }));
             for (let i = 0; i < stmts.length; i += 100) {
