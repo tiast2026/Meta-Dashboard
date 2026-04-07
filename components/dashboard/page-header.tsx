@@ -29,7 +29,11 @@ export function PageHeader({ title, subtitle, clientName, from, to, onDateChange
             {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
             {lastUpdated && <p className="text-xs text-gray-400 mt-1">最終更新: {lastUpdated}</p>}
           </div>
-          <div className="overflow-x-auto -mx-1 px-1">
+          {/* DateRangePicker handles its own popover overflow via
+              max-w-[calc(100vw-2rem)] — do NOT wrap in overflow-x-auto here
+              because that creates a clipping context and the popover would
+              be hidden. */}
+          <div className="flex flex-wrap items-center gap-2 -mx-1 px-1">
             <DateRangePicker from={from} to={to} onChange={onDateChange} />
           </div>
         </div>

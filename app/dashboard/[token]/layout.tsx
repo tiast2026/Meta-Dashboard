@@ -117,8 +117,10 @@ export default function DashboardLayout({
       </div>
 
       {/* Main content. min-w-0 prevents flex children from overflowing
-          when their content is wider than the parent (e.g. wide tables). */}
-      <main className="flex-1 min-w-0 md:ml-56 mt-[88px] md:mt-0 max-w-full overflow-x-hidden">
+          when their content is wider than the parent (e.g. wide tables).
+          We avoid overflow-x-hidden on <main> because it creates a clipping
+          context that hides popovers (like the date picker dropdown). */}
+      <main className="flex-1 min-w-0 md:ml-56 mt-[88px] md:mt-0 max-w-full">
         {children}
       </main>
     </div>
