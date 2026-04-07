@@ -77,6 +77,33 @@ export async function ensureDb() {
     // table may not exist yet
   }
 
+  // Add detailed action columns (ATC, IC, purchase, ROAS など)
+  const adActionColumns = [
+    'add_to_cart INTEGER DEFAULT 0',
+    'initiate_checkout INTEGER DEFAULT 0',
+    'purchase INTEGER DEFAULT 0',
+    'purchase_value REAL DEFAULT 0',
+    'view_content INTEGER DEFAULT 0',
+    'lead INTEGER DEFAULT 0',
+    'complete_registration INTEGER DEFAULT 0',
+    'contact INTEGER DEFAULT 0',
+    'subscribe INTEGER DEFAULT 0',
+    'search INTEGER DEFAULT 0',
+    'add_payment_info INTEGER DEFAULT 0',
+    'add_to_wishlist INTEGER DEFAULT 0',
+    'page_engagement INTEGER DEFAULT 0',
+    'post_engagement INTEGER DEFAULT 0',
+    'video_view INTEGER DEFAULT 0',
+    'link_click INTEGER DEFAULT 0',
+  ];
+  for (const col of adActionColumns) {
+    try {
+      await db.execute(`ALTER TABLE meta_ad_insights ADD COLUMN ${col}`);
+    } catch {
+      // column already exists
+    }
+  }
+
   const schemaPath = path.join(process.cwd(), 'lib', 'schema.sql');
   const schema = fs.readFileSync(schemaPath, 'utf-8');
   const statements = schema

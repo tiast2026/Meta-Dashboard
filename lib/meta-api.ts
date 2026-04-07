@@ -277,7 +277,26 @@ export async function fetchIgTaggedPosts(
 
 // ─── Meta Ads (max 37 months with date chunking + pagination) ───
 
-export interface MetaAdInsight {
+export interface MetaAdActions {
+  add_to_cart: number;
+  initiate_checkout: number;
+  purchase: number;
+  purchase_value: number;
+  view_content: number;
+  lead: number;
+  complete_registration: number;
+  contact: number;
+  subscribe: number;
+  search: number;
+  add_payment_info: number;
+  add_to_wishlist: number;
+  page_engagement: number;
+  post_engagement: number;
+  video_view: number;
+  link_click: number;
+}
+
+export interface MetaAdInsight extends MetaAdActions {
   date: string;
   campaign_id: string;
   campaign_name: string;
@@ -295,6 +314,86 @@ export interface MetaAdInsight {
   website_actions: number;
 }
 
+const EMPTY_ACTIONS: MetaAdActions = {
+  add_to_cart: 0,
+  initiate_checkout: 0,
+  purchase: 0,
+  purchase_value: 0,
+  view_content: 0,
+  lead: 0,
+  complete_registration: 0,
+  contact: 0,
+  subscribe: 0,
+  search: 0,
+  add_payment_info: 0,
+  add_to_wishlist: 0,
+  page_engagement: 0,
+  post_engagement: 0,
+  video_view: 0,
+  link_click: 0,
+};
+
+/**
+ * Map Meta `actions[]` array (and `action_values[]` for purchase value) into
+ * our flat schema. Meta returns the same conversion under multiple action_type
+ * names depending on where the pixel/conversion was set up — e.g.
+ * `purchase`, `offsite_conversion.fb_pixel_purchase`,
+ * `omni_purchase`, `web_in_store_purchase` — so we accept all aliases.
+ */
+function mapActions(
+  actions: { action_type: string; value: string }[] | undefined,
+  actionValues: { action_type: string; value: string }[] | undefined
+): MetaAdActions {
+  const out: MetaAdActions = { ...EMPTY_ACTIONS };
+  if (!actions) return out;
+
+  const acc = (key: keyof MetaAdActions, v: number) => {
+    out[key] = (out[key] || 0) + v;
+  };
+
+  for (const a of actions) {
+    const t = a.action_type;
+    const v = Number(a.value) || 0;
+    if (v === 0) continue;
+
+    // Use the most specific (offsite_conversion.fb_pixel_*) when available so
+    // we don't double-count omni_* aliases. The Meta API will return both, so
+    // we prefer offsite_conversion variants and skip the omni aliases.
+    if (t.startsWith('omni_')) continue;
+
+    if (t === 'purchase' || t === 'offsite_conversion.fb_pixel_purchase' || t === 'web_in_store_purchase') acc('purchase', v);
+    else if (t === 'add_to_cart' || t === 'offsite_conversion.fb_pixel_add_to_cart') acc('add_to_cart', v);
+    else if (t === 'initiate_checkout' || t === 'offsite_conversion.fb_pixel_initiate_checkout') acc('initiate_checkout', v);
+    else if (t === 'view_content' || t === 'offsite_conversion.fb_pixel_view_content') acc('view_content', v);
+    else if (t === 'lead' || t === 'offsite_conversion.fb_pixel_lead') acc('lead', v);
+    else if (t === 'complete_registration' || t === 'offsite_conversion.fb_pixel_complete_registration') acc('complete_registration', v);
+    else if (t === 'contact' || t === 'offsite_conversion.fb_pixel_contact') acc('contact', v);
+    else if (t === 'subscribe' || t === 'offsite_conversion.fb_pixel_subscribe') acc('subscribe', v);
+    else if (t === 'search' || t === 'offsite_conversion.fb_pixel_search') acc('search', v);
+    else if (t === 'add_payment_info' || t === 'offsite_conversion.fb_pixel_add_payment_info') acc('add_payment_info', v);
+    else if (t === 'add_to_wishlist' || t === 'offsite_conversion.fb_pixel_add_to_wishlist') acc('add_to_wishlist', v);
+    else if (t === 'page_engagement') acc('page_engagement', v);
+    else if (t === 'post_engagement') acc('post_engagement', v);
+    else if (t === 'video_view') acc('video_view', v);
+    else if (t === 'link_click') acc('link_click', v);
+  }
+
+  // Purchase value (revenue) for ROAS calculation
+  if (actionValues) {
+    for (const a of actionValues) {
+      const t = a.action_type;
+      const v = Number(a.value) || 0;
+      if (v === 0) continue;
+      if (t.startsWith('omni_')) continue;
+      if (t === 'purchase' || t === 'offsite_conversion.fb_pixel_purchase' || t === 'web_in_store_purchase') {
+        out.purchase_value += v;
+      }
+    }
+  }
+
+  return out;
+}
+
 export async function fetchMetaAds(
   adAccountId: string,
   token: string,
@@ -308,7 +407,7 @@ export async function fetchMetaAds(
   const defaultStart = new Date(now.getTime() - 30 * 86400000);
   const startDate = since ? new Date(since) : defaultStart;
 
-  const fields = 'campaign_id,campaign_name,objective,adset_id,adset_name,ad_id,ad_name,impressions,reach,clicks,spend,actions';
+  const fields = 'campaign_id,campaign_name,objective,adset_id,adset_name,ad_id,ad_name,impressions,reach,clicks,spend,actions,action_values';
   const chunks = dateChunks(startDate, endDate, ADS_CHUNK_DAYS);
   const allInsights: MetaAdInsight[] = [];
 
@@ -322,20 +421,14 @@ export async function fetchMetaAds(
         if (!res.data || res.data.length === 0) break;
 
         for (const row of res.data) {
-          let results = 0;
-          let website_actions = 0;
           const actions = row.actions as { action_type: string; value: string }[] | undefined;
-          if (actions) {
-            for (const a of actions) {
-              const v = Number(a.value) || 0;
-              if (['lead', 'purchase', 'complete_registration', 'link_click'].includes(a.action_type)) {
-                results += v;
-              }
-              if (a.action_type.startsWith('offsite_conversion.') || a.action_type === 'link_click') {
-                website_actions += v;
-              }
-            }
-          }
+          const actionValues = row.action_values as { action_type: string; value: string }[] | undefined;
+          const mapped = mapActions(actions, actionValues);
+
+          // Top-level "results" used in the legacy KPI = sum of conversion-style actions
+          const results = mapped.lead + mapped.purchase + mapped.complete_registration + mapped.link_click;
+          // "website_actions" = engagement style (kept for backwards compatibility)
+          const website_actions = mapped.link_click + mapped.add_to_cart + mapped.initiate_checkout + mapped.purchase;
 
           allInsights.push({
             date: String(row.date_start || ''),
@@ -353,6 +446,7 @@ export async function fetchMetaAds(
             spend: Number(row.spend) || 0,
             results,
             website_actions,
+            ...mapped,
           });
         }
 
