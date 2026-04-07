@@ -179,12 +179,18 @@ export default function ClientDetailPage() {
     attempt: number,
     phase: Phase,
     progressBase: number,
-    progressSpan: number
+    progressSpan: number,
+    windowLabel?: string,
+    sinceUntil?: { since: string; until: string }
   ): Promise<{ completed: boolean }> => {
     return new Promise((resolve) => {
       const params = new URLSearchParams({ client_id: clientId });
       if (full) params.set("full", "1");
       if (phase !== "all") params.set("phase", phase);
+      if (sinceUntil) {
+        params.set("since", sinceUntil.since);
+        params.set("until", sinceUntil.until);
+      }
       const evtSource = new EventSource(`/api/import/fetch-all?${params.toString()}`);
       let completed = false;
       const stepKeyMap: Record<string, string> = {
@@ -192,6 +198,8 @@ export default function ClientDetailPage() {
         ig_posts: "ig_posts",
         ig_tagged: "ig_tagged",
         meta_ads: "meta_ads",
+        meta_creatives: "meta_creatives",
+        meta_breakdowns: "meta_breakdowns",
       };
 
       evtSource.onmessage = (event) => {
@@ -203,11 +211,13 @@ export default function ClientDetailPage() {
 
         const uiKey = stepKeyMap[data.step];
         if (uiKey) {
+          const prefix = windowLabel ? `[${windowLabel}] ` : "";
+          const retryPrefix = attempt > 0 ? `[再試行${attempt}] ` : "";
           setFetchStates((prev) => ({
             ...prev,
             [uiKey]: {
               loading: data.status === "running",
-              message: attempt > 0 ? `[再試行${attempt}] ${data.message}` : data.message,
+              message: `${retryPrefix}${prefix}${data.message}`,
               success: data.status === "done" ? true : data.status === "error" ? false : null,
             },
           }));
@@ -231,16 +241,38 @@ export default function ClientDetailPage() {
     full: boolean,
     phase: Phase,
     progressBase: number,
-    progressSpan: number
+    progressSpan: number,
+    windowLabel?: string,
+    sinceUntil?: { since: string; until: string }
   ): Promise<boolean> => {
     let attempt = 0;
-    let result = await runFetchAttempt(full, 0, phase, progressBase, progressSpan);
+    let result = await runFetchAttempt(full, 0, phase, progressBase, progressSpan, windowLabel, sinceUntil);
     while (!result.completed && attempt < MAX_RETRIES) {
       attempt++;
       await new Promise((r) => setTimeout(r, 1500 * attempt));
-      result = await runFetchAttempt(full, attempt, phase, progressBase, progressSpan);
+      result = await runFetchAttempt(full, attempt, phase, progressBase, progressSpan, windowLabel, sinceUntil);
     }
     return result.completed;
+  };
+
+  /** Build a list of yearly date windows that go back N years from today.
+   *  The most recent year is fetched first so users see fresh data quickly. */
+  const buildYearlyWindows = (yearsBack: number): { since: string; until: string; label: string }[] => {
+    const windows: { since: string; until: string; label: string }[] = [];
+    const today = new Date();
+    for (let i = 0; i < yearsBack; i++) {
+      const until = new Date(today);
+      until.setFullYear(today.getFullYear() - i);
+      const since = new Date(until);
+      since.setFullYear(until.getFullYear() - 1);
+      since.setDate(since.getDate() + 1); // avoid 1-day overlap with the next window
+      windows.push({
+        since: since.toISOString().slice(0, 10),
+        until: until.toISOString().slice(0, 10),
+        label: `${i + 1}年前`,
+      });
+    }
+    return windows;
   };
 
   const fetchAllFromApi = async (full: boolean = false) => {
@@ -248,9 +280,9 @@ export default function ClientDetailPage() {
       const ok = confirm(
         "全期間の過去データを取得します。\n" +
         "・Instagram: 約2年\n" +
-        "・Meta広告: 約37ヶ月\n" +
+        "・Meta広告: 約3年（年単位で順次取得）\n" +
         "・投稿: 最大3,000件\n\n" +
-        "APIコール数が多くなり、完了まで30〜60秒かかる場合があります。\n" +
+        "重い処理を年単位で分割して順次取得します。完了まで3〜5分かかる場合があります。\n" +
         "途中でタイムアウトしても自動で最大3回まで再試行します。続行しますか？"
       );
       if (!ok) return;
@@ -268,18 +300,45 @@ export default function ClientDetailPage() {
 
     try {
       let allCompleted = true;
-      if (full) {
-        // For full mode we run each phase as a separate request so each fits
-        // inside the Vercel function time limit. The 6 phases share the
-        // overall progress bar evenly.
-        const phases: Phase[] = ["ig_daily", "ig_posts", "ig_tagged", "meta_ads", "meta_creatives", "meta_breakdowns"];
-        const span = Math.floor(100 / phases.length);
-        for (let i = 0; i < phases.length; i++) {
-          const ok = await runPhaseWithRetry(full, phases[i], i * span, span);
-          if (!ok) allCompleted = false;
-        }
+
+      if (!full) {
+        // Default 30-day refresh: one shot.
+        allCompleted = await runPhaseWithRetry(false, "all", 0, 100);
       } else {
-        allCompleted = await runPhaseWithRetry(full, "all", 0, 100);
+        // ── Full mode: split into many small windowed requests ──
+        // Heavy phases (meta_ads + meta_breakdowns) are split into 3 yearly
+        // windows. ig_daily is split into 2 yearly windows. Others run once.
+        type Step = { phase: Phase; weight: number; sinceUntil?: { since: string; until: string }; label?: string };
+        const steps: Step[] = [];
+
+        // ig_daily: 2 yearly windows
+        for (const w of buildYearlyWindows(2)) {
+          steps.push({ phase: "ig_daily", weight: 1, sinceUntil: { since: w.since, until: w.until }, label: w.label });
+        }
+        // ig_posts (1 shot, paginated by API)
+        steps.push({ phase: "ig_posts", weight: 1 });
+        // ig_tagged (1 shot)
+        steps.push({ phase: "ig_tagged", weight: 1 });
+        // meta_ads: 3 yearly windows
+        for (const w of buildYearlyWindows(3)) {
+          steps.push({ phase: "meta_ads", weight: 2, sinceUntil: { since: w.since, until: w.until }, label: w.label });
+        }
+        // meta_creatives (1 shot, account snapshot)
+        steps.push({ phase: "meta_creatives", weight: 1 });
+        // meta_breakdowns: 3 yearly windows
+        for (const w of buildYearlyWindows(3)) {
+          steps.push({ phase: "meta_breakdowns", weight: 2, sinceUntil: { since: w.since, until: w.until }, label: w.label });
+        }
+
+        const totalWeight = steps.reduce((s, st) => s + st.weight, 0);
+        let consumedWeight = 0;
+        for (const step of steps) {
+          const base = (consumedWeight / totalWeight) * 100;
+          const span = (step.weight / totalWeight) * 100;
+          const ok = await runPhaseWithRetry(true, step.phase, base, span, step.label, step.sinceUntil);
+          if (!ok) allCompleted = false;
+          consumedWeight += step.weight;
+        }
       }
 
       setFetchAllRunning(false);

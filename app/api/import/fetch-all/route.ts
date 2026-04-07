@@ -34,11 +34,16 @@ export async function GET(request: NextRequest) {
   }
   // ?full=1 → fetch maximum historical data instead of the default 30 days
   const fullMode = request.nextUrl.searchParams.get('full') === '1';
-  // ?phase=ig_daily|ig_posts|ig_tagged|meta_ads → only run a single phase so
-  // each call fits comfortably inside the Vercel function time limit. The UI
-  // chains these for full mode.
+  // ?phase=ig_daily|ig_posts|ig_tagged|meta_ads|meta_creatives|meta_breakdowns
+  // → only run a single phase so each call fits comfortably inside the
+  //   Vercel function time limit. The UI chains these for full mode.
   const phaseParam = (request.nextUrl.searchParams.get('phase') || 'all') as Phase;
   const phaseAllowed = (p: Phase): boolean => phaseParam === 'all' || phaseParam === p;
+  // ?since=YYYY-MM-DD&until=YYYY-MM-DD → override the date range used for
+  //   ig_daily/meta_ads/meta_breakdowns. Lets the UI break a long historical
+  //   fetch into shorter sub-windows that each fit in 60s.
+  const customSince = request.nextUrl.searchParams.get('since') || undefined;
+  const customUntil = request.nextUrl.searchParams.get('until') || undefined;
 
   const client = await queryOne<Record<string, unknown>>(
     `SELECT instagram_account_id, meta_ad_account_id, meta_access_token FROM ${T} WHERE client_id = @id LIMIT 1`,
@@ -82,10 +87,12 @@ export async function GET(request: NextRequest) {
       let completedSteps = 0;
 
       const now = new Date();
-      const igSince = fullMode ? isoDate(new Date(now.getTime() - IG_INSIGHTS_MAX_DAYS * 86400000)) : undefined;
-      const igUntil = fullMode ? isoDate(now) : undefined;
-      const adsSince = fullMode ? isoDate(new Date(now.getTime() - META_ADS_MAX_DAYS * 86400000)) : undefined;
-      const adsUntil = fullMode ? isoDate(now) : undefined;
+      // Custom since/until override (used by UI to chunk into yearly windows).
+      // Otherwise fall back to: full mode = max history, otherwise default 30d.
+      const igSince = customSince || (fullMode ? isoDate(new Date(now.getTime() - IG_INSIGHTS_MAX_DAYS * 86400000)) : undefined);
+      const igUntil = customUntil || (fullMode ? isoDate(now) : undefined);
+      const adsSince = customSince || (fullMode ? isoDate(new Date(now.getTime() - META_ADS_MAX_DAYS * 86400000)) : undefined);
+      const adsUntil = customUntil || (fullMode ? isoDate(now) : undefined);
 
       // --- 1. Instagram Daily Insights ---
       if (igId && phaseAllowed('ig_daily')) {
