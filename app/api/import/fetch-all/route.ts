@@ -6,6 +6,7 @@ import {
   fetchIgPosts,
   fetchIgTaggedPosts,
   fetchMetaAds,
+  fetchMetaAdCreatives,
   getLastIgInsightsError,
 } from '@/lib/meta-api';
 import type { InStatement } from '@libsql/client';
@@ -22,7 +23,7 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-type Phase = 'all' | 'ig_daily' | 'ig_posts' | 'ig_tagged' | 'meta_ads';
+type Phase = 'all' | 'ig_daily' | 'ig_posts' | 'ig_tagged' | 'meta_ads' | 'meta_creatives';
 
 export async function GET(request: NextRequest) {
   const clientId = request.nextUrl.searchParams.get('client_id');
@@ -67,6 +68,7 @@ export async function GET(request: NextRequest) {
         { key: 'ig_posts' as Phase, label: 'Instagram投稿データ', needsIg: true },
         { key: 'ig_tagged' as Phase, label: 'タグ付け投稿', needsIg: true },
         { key: 'meta_ads' as Phase, label: 'Meta広告データ', needsAd: true },
+        { key: 'meta_creatives' as Phase, label: '広告クリエイティブ', needsAd: true },
       ];
 
       const totalSteps = steps.filter(s =>
@@ -204,6 +206,34 @@ export async function GET(request: NextRequest) {
           }
         } catch (err) {
           send({ step: 'meta_ads', status: 'error', message: err instanceof Error ? err.message : String(err), progress: Math.round((++completedSteps / totalSteps) * 100) });
+        }
+      }
+
+      // --- 5. Meta Ad Creatives (thumbnails) ---
+      if (adAccountId && phaseAllowed('meta_creatives')) {
+        send({ step: 'meta_creatives', status: 'running', message: '広告クリエイティブを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
+        try {
+          const creatives = await fetchMetaAdCreatives(adAccountId, token, { full: fullMode });
+          if (creatives.length > 0) {
+            const stmts: InStatement[] = creatives.map((c) => ({
+              sql: `INSERT OR REPLACE INTO meta_ad_creatives
+                (client_id, ad_id, ad_name, thumbnail_url, image_url, title, body,
+                 call_to_action_type, link_url, instagram_permalink_url, effective_object_story_id, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+              args: [
+                clientId, c.ad_id, c.ad_name, c.thumbnail_url, c.image_url, c.title, c.body,
+                c.call_to_action_type, c.link_url, c.instagram_permalink_url, c.effective_object_story_id,
+              ],
+            }));
+            for (let i = 0; i < stmts.length; i += 100) {
+              await db.batch(stmts.slice(i, i + 100), 'write');
+            }
+            send({ step: 'meta_creatives', status: 'done', message: `${creatives.length}件取得完了`, progress: Math.round((++completedSteps / totalSteps) * 100) });
+          } else {
+            send({ step: 'meta_creatives', status: 'done', message: 'クリエイティブなし', progress: Math.round((++completedSteps / totalSteps) * 100) });
+          }
+        } catch (err) {
+          send({ step: 'meta_creatives', status: 'error', message: err instanceof Error ? err.message : String(err), progress: Math.round((++completedSteps / totalSteps) * 100) });
         }
       }
 

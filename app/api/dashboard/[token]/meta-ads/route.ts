@@ -123,9 +123,26 @@ export async function GET(
       args: [clientId, ...dateArgs],
     });
 
+    // ── Creatives (thumbnails) keyed by ad_id ──────────
+    const creativesResult = await db.execute({
+      sql: `SELECT ad_id, thumbnail_url, image_url, title, body,
+                   call_to_action_type, link_url, instagram_permalink_url
+            FROM meta_ad_creatives
+            WHERE client_id = ?`,
+      args: [clientId],
+    });
+    const creativesByAdId: Record<string, Row> = {};
+    for (const r of creativesResult.rows) {
+      creativesByAdId[String(r.ad_id)] = r as Row;
+    }
+
     const campaigns = campaignsResult.rows.map(withDerived);
     const adsets = adsetsResult.rows.map(withDerived);
-    const ads = adsResult.rows.map(withDerived);
+    const ads = adsResult.rows.map((r) => {
+      const base = withDerived(r);
+      const creative = creativesByAdId[String(base.ad_id)];
+      return creative ? { ...base, creative } : base;
+    });
 
     // ── Backwards-compat: legacy `campaigns` shape (campaign_name based) ──
     const legacyCampaigns = campaigns.map((c) => ({

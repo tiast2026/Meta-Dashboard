@@ -7,6 +7,7 @@ import {
   fetchIgPosts,
   fetchIgTaggedPosts,
   fetchMetaAds,
+  fetchMetaAdCreatives,
   getLastIgInsightsError,
 } from '@/lib/meta-api';
 
@@ -37,6 +38,7 @@ interface RefreshSummary {
   ig_posts: number | string;
   ig_tagged: number | string;
   meta_ads: number | string;
+  meta_creatives: number | string;
 }
 
 // Backfill thresholds: if a table has fewer rows than this for a client we
@@ -71,6 +73,7 @@ async function refreshClient(c: ClientRow): Promise<RefreshSummary> {
     ig_posts: 'skipped',
     ig_tagged: 'skipped',
     meta_ads: 'skipped',
+    meta_creatives: 'skipped',
   };
   const token = c.meta_access_token;
   if (!token) return summary;
@@ -189,6 +192,29 @@ async function refreshClient(c: ClientRow): Promise<RefreshSummary> {
       summary.meta_ads = insights.length;
     } catch (err) {
       summary.meta_ads = `error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // ── Meta ad creatives (thumbnails) ──────────────
+    try {
+      const creatives = await fetchMetaAdCreatives(c.meta_ad_account_id, token);
+      if (creatives.length > 0) {
+        const stmts: InStatement[] = creatives.map((cr) => ({
+          sql: `INSERT OR REPLACE INTO meta_ad_creatives
+            (client_id, ad_id, ad_name, thumbnail_url, image_url, title, body,
+             call_to_action_type, link_url, instagram_permalink_url, effective_object_story_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+          args: [
+            c.client_id, cr.ad_id, cr.ad_name, cr.thumbnail_url, cr.image_url, cr.title, cr.body,
+            cr.call_to_action_type, cr.link_url, cr.instagram_permalink_url, cr.effective_object_story_id,
+          ],
+        }));
+        for (let i = 0; i < stmts.length; i += 100) {
+          await db.batch(stmts.slice(i, i + 100), 'write');
+        }
+      }
+      summary.meta_creatives = creatives.length;
+    } catch (err) {
+      summary.meta_creatives = `error: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 

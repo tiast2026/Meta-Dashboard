@@ -10,6 +10,16 @@ import { cn } from "@/lib/utils"
 
 // ── Types ───────────────────────────────────────────────
 
+interface Creative {
+  thumbnail_url?: string
+  image_url?: string
+  title?: string
+  body?: string
+  call_to_action_type?: string
+  link_url?: string
+  instagram_permalink_url?: string
+}
+
 interface BaseRow {
   campaign_id: string
   campaign_name: string
@@ -18,6 +28,7 @@ interface BaseRow {
   adset_name?: string
   ad_id?: string
   ad_name?: string
+  creative?: Creative
   impressions: number
   reach: number
   clicks: number
@@ -342,20 +353,55 @@ export function ExpandableCampaignTable({ hierarchy }: Props) {
                             </td>
                           ))}
                         </tr>
-                        {sOpen && ads.map((a) => (
-                          <tr key={`a-${a.ad_id}`} className="bg-white hover:bg-indigo-50/40">
-                            <td className="sticky left-0 bg-white hover:bg-indigo-50/40 px-4 py-2 pl-16 z-10">
-                              <span className="text-gray-600 text-sm truncate block" title={a.ad_name}>
-                                ・{a.ad_name || "(無名広告)"}
-                              </span>
-                            </td>
-                            {visibleColumns.map((col) => (
-                              <td key={col.key} className={cn("px-4 py-2 tabular-nums whitespace-nowrap text-gray-600 text-sm", col.align === "right" && "text-right")}>
-                                {col.format(Number(a[col.key as keyof BaseRow]) || 0)}
+                        {sOpen && ads.map((a) => {
+                          const creative = a.creative
+                          const thumb = creative?.thumbnail_url || creative?.image_url
+                          const linkHref = creative?.instagram_permalink_url || creative?.link_url
+                          return (
+                            <tr key={`a-${a.ad_id}`} className="bg-white hover:bg-indigo-50/40">
+                              <td className="sticky left-0 bg-white hover:bg-indigo-50/40 px-4 py-2 pl-16 z-10">
+                                <div className="flex items-center gap-2.5">
+                                  {thumb ? (
+                                    linkHref ? (
+                                      <a
+                                        href={linkHref}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="shrink-0 block w-10 h-10 rounded-md overflow-hidden border border-gray-200 hover:ring-2 hover:ring-indigo-300 transition"
+                                        title={creative?.title || a.ad_name}
+                                      >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={thumb} alt="" className="w-full h-full object-cover" />
+                                      </a>
+                                    ) : (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={thumb} alt="" className="shrink-0 w-10 h-10 rounded-md object-cover border border-gray-200" />
+                                    )
+                                  ) : (
+                                    <div className="shrink-0 w-10 h-10 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center text-[10px] text-gray-400">
+                                      画像なし
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <span className="text-gray-700 text-sm truncate block" title={a.ad_name}>
+                                      {a.ad_name || "(無名広告)"}
+                                    </span>
+                                    {creative?.title && (
+                                      <span className="text-[11px] text-gray-400 truncate block" title={creative.title}>
+                                        {creative.title}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               </td>
-                            ))}
-                          </tr>
-                        ))}
+                              {visibleColumns.map((col) => (
+                                <td key={col.key} className={cn("px-4 py-2 tabular-nums whitespace-nowrap text-gray-600 text-sm", col.align === "right" && "text-right")}>
+                                  {col.format(Number(a[col.key as keyof BaseRow]) || 0)}
+                                </td>
+                              ))}
+                            </tr>
+                          )
+                        })}
                       </Fragment>
                     )
                   })}

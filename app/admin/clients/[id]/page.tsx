@@ -172,7 +172,7 @@ export default function ClientDetailPage() {
 
   const MAX_RETRIES = 3;
 
-  type Phase = "all" | "ig_daily" | "ig_posts" | "ig_tagged" | "meta_ads";
+  type Phase = "all" | "ig_daily" | "ig_posts" | "ig_tagged" | "meta_ads" | "meta_creatives";
 
   const runFetchAttempt = (
     full: boolean,
@@ -268,11 +268,11 @@ export default function ClientDetailPage() {
       let allCompleted = true;
       if (full) {
         // For full mode we run each phase as a separate request so each fits
-        // inside the Vercel function time limit. The 4 phases share the
-        // overall progress bar (25% each).
-        const phases: Phase[] = ["ig_daily", "ig_posts", "ig_tagged", "meta_ads"];
+        // inside the Vercel function time limit. The 5 phases share the
+        // overall progress bar (20% each).
+        const phases: Phase[] = ["ig_daily", "ig_posts", "ig_tagged", "meta_ads", "meta_creatives"];
         for (let i = 0; i < phases.length; i++) {
-          const ok = await runPhaseWithRetry(full, phases[i], i * 25, 25);
+          const ok = await runPhaseWithRetry(full, phases[i], i * 20, 20);
           if (!ok) allCompleted = false;
         }
       } else {

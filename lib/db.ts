@@ -77,6 +77,27 @@ export async function ensureDb() {
     // table may not exist yet
   }
 
+  // Create meta_ad_creatives table if missing
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS meta_ad_creatives (
+      ad_id TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      ad_name TEXT,
+      thumbnail_url TEXT,
+      image_url TEXT,
+      title TEXT,
+      body TEXT,
+      call_to_action_type TEXT,
+      link_url TEXT,
+      instagram_permalink_url TEXT,
+      effective_object_story_id TEXT,
+      updated_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (client_id, ad_id)
+    )`);
+  } catch {
+    // ignore
+  }
+
   // Add detailed action columns (ATC, IC, purchase, ROAS など)
   const adActionColumns = [
     'add_to_cart INTEGER DEFAULT 0',
