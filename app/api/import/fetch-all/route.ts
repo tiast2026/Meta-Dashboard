@@ -7,7 +7,9 @@ import {
   fetchIgTaggedPosts,
   fetchMetaAds,
   fetchMetaAdCreatives,
+  fetchMetaAdsBreakdown,
   getLastIgInsightsError,
+  type BreakdownType,
 } from '@/lib/meta-api';
 import type { InStatement } from '@libsql/client';
 
@@ -23,7 +25,7 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-type Phase = 'all' | 'ig_daily' | 'ig_posts' | 'ig_tagged' | 'meta_ads' | 'meta_creatives';
+type Phase = 'all' | 'ig_daily' | 'ig_posts' | 'ig_tagged' | 'meta_ads' | 'meta_creatives' | 'meta_breakdowns';
 
 export async function GET(request: NextRequest) {
   const clientId = request.nextUrl.searchParams.get('client_id');
@@ -69,6 +71,7 @@ export async function GET(request: NextRequest) {
         { key: 'ig_tagged' as Phase, label: 'タグ付け投稿', needsIg: true },
         { key: 'meta_ads' as Phase, label: 'Meta広告データ', needsAd: true },
         { key: 'meta_creatives' as Phase, label: '広告クリエイティブ', needsAd: true },
+        { key: 'meta_breakdowns' as Phase, label: '広告 属性別データ', needsAd: true },
       ];
 
       const totalSteps = steps.filter(s =>
@@ -234,6 +237,43 @@ export async function GET(request: NextRequest) {
           }
         } catch (err) {
           send({ step: 'meta_creatives', status: 'error', message: err instanceof Error ? err.message : String(err), progress: Math.round((++completedSteps / totalSteps) * 100) });
+        }
+      }
+
+      // --- 6. Meta Ads Breakdowns (age/gender/region/hour/device) ---
+      if (adAccountId && phaseAllowed('meta_breakdowns')) {
+        send({ step: 'meta_breakdowns', status: 'running', message: '広告 属性別データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
+        const types: BreakdownType[] = ['age_gender', 'region', 'country', 'hourly', 'device'];
+        let totalRows = 0;
+        const errors: string[] = [];
+        for (const type of types) {
+          try {
+            const rows = await fetchMetaAdsBreakdown(adAccountId, token, type, adsSince, adsUntil);
+            if (rows.length === 0) continue;
+            const stmts: InStatement[] = rows.map((row) => ({
+              sql: `INSERT OR REPLACE INTO meta_ad_breakdowns
+                (client_id, date, breakdown_type, breakdown_key,
+                 impressions, reach, clicks, spend,
+                 purchase, purchase_value, add_to_cart, initiate_checkout)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              args: [
+                clientId, row.date, row.breakdown_type, row.breakdown_key,
+                row.impressions, row.reach, row.clicks, row.spend,
+                row.purchase, row.purchase_value, row.add_to_cart, row.initiate_checkout,
+              ],
+            }));
+            for (let i = 0; i < stmts.length; i += 100) {
+              await db.batch(stmts.slice(i, i + 100), 'write');
+            }
+            totalRows += rows.length;
+          } catch (err) {
+            errors.push(`${type}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+        if (errors.length > 0) {
+          send({ step: 'meta_breakdowns', status: errors.length === types.length ? 'error' : 'done', message: `${totalRows}件取得 (${errors.length}件失敗)`, progress: Math.round((++completedSteps / totalSteps) * 100) });
+        } else {
+          send({ step: 'meta_breakdowns', status: 'done', message: `${totalRows}件取得完了`, progress: Math.round((++completedSteps / totalSteps) * 100) });
         }
       }
 

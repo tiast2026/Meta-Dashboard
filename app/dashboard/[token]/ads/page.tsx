@@ -9,6 +9,7 @@ import { KpiCard } from "@/components/dashboard/kpi-card";
 import { DailyTrendChart } from "@/components/dashboard/daily-trend-chart";
 import { ExpandableCampaignTable } from "@/components/dashboard/expandable-campaign-table";
 import { PlatformBreakdown } from "@/components/dashboard/platform-breakdown";
+import { AdsBreakdowns } from "@/components/dashboard/ads-breakdowns";
 
 function calcChange(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;
@@ -34,6 +35,15 @@ function AdsContent() {
 
   const { data, loading, error } = useFetchData<AdsData>(
     `/api/dashboard/${token}/meta-ads?from=${from}&to=${to}`
+  );
+  const { data: breakdownsData, loading: breakdownsLoading } = useFetchData<{
+    age_gender: never[];
+    region: never[];
+    country: never[];
+    hourly: never[];
+    device: never[];
+  }>(
+    `/api/dashboard/${token}/meta-ads/breakdowns?from=${from}&to=${to}`
   );
 
   const kpi = data?.kpi || {};
@@ -81,6 +91,10 @@ function AdsContent() {
 
             <div className="rounded-xl border border-gray-200 bg-white p-6">
               <ExpandableCampaignTable hierarchy={data?.hierarchy as never} />
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-6">
+              <AdsBreakdowns data={breakdownsData as never} loading={breakdownsLoading} />
             </div>
 
             {(data?.platforms || []).length > 0 && (

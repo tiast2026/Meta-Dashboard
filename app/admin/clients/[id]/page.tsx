@@ -172,7 +172,7 @@ export default function ClientDetailPage() {
 
   const MAX_RETRIES = 3;
 
-  type Phase = "all" | "ig_daily" | "ig_posts" | "ig_tagged" | "meta_ads" | "meta_creatives";
+  type Phase = "all" | "ig_daily" | "ig_posts" | "ig_tagged" | "meta_ads" | "meta_creatives" | "meta_breakdowns";
 
   const runFetchAttempt = (
     full: boolean,
@@ -262,17 +262,20 @@ export default function ClientDetailPage() {
       ig_posts: { loading: true, message: "待機中...", success: null },
       ig_tagged: { loading: true, message: "待機中...", success: null },
       meta_ads: { loading: true, message: "待機中...", success: null },
+      meta_creatives: { loading: true, message: "待機中...", success: null },
+      meta_breakdowns: { loading: true, message: "待機中...", success: null },
     });
 
     try {
       let allCompleted = true;
       if (full) {
         // For full mode we run each phase as a separate request so each fits
-        // inside the Vercel function time limit. The 5 phases share the
-        // overall progress bar (20% each).
-        const phases: Phase[] = ["ig_daily", "ig_posts", "ig_tagged", "meta_ads", "meta_creatives"];
+        // inside the Vercel function time limit. The 6 phases share the
+        // overall progress bar evenly.
+        const phases: Phase[] = ["ig_daily", "ig_posts", "ig_tagged", "meta_ads", "meta_creatives", "meta_breakdowns"];
+        const span = Math.floor(100 / phases.length);
         for (let i = 0; i < phases.length; i++) {
-          const ok = await runPhaseWithRetry(full, phases[i], i * 20, 20);
+          const ok = await runPhaseWithRetry(full, phases[i], i * span, span);
           if (!ok) allCompleted = false;
         }
       } else {
@@ -527,6 +530,8 @@ export default function ClientDetailPage() {
               { key: "ig_posts", title: "Instagram投稿データ", icon: <FileUp className="w-4 h-4 text-purple-600" />, bgColor: "bg-purple-50" },
               { key: "ig_tagged", title: "タグ付け投稿", icon: <Tag className="w-4 h-4 text-orange-600" />, bgColor: "bg-orange-50" },
               { key: "meta_ads", title: "Meta広告データ", icon: <Megaphone className="w-4 h-4 text-blue-600" />, bgColor: "bg-blue-50" },
+              { key: "meta_creatives", title: "広告クリエイティブ", icon: <FileUp className="w-4 h-4 text-cyan-600" />, bgColor: "bg-cyan-50" },
+              { key: "meta_breakdowns", title: "属性別データ", icon: <Megaphone className="w-4 h-4 text-indigo-600" />, bgColor: "bg-indigo-50" },
             ].map((item) => {
               const state = fetchStates[item.key];
               return (
