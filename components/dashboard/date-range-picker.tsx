@@ -194,7 +194,7 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
   const rightMonth = addMonths(leftMonth, 1)
 
   return (
-    <div className="flex items-center gap-2" ref={containerRef}>
+    <div className="flex items-center gap-2 flex-wrap" ref={containerRef}>
       {topPresets.map((preset) => (
         <button
           key={preset.key}
