@@ -19,32 +19,37 @@ interface ClientRow {
 }
 
 /**
- * Diagnostics endpoint. Authenticated via the NextAuth middleware (under
- * /api/clients style protection? — actually middleware only protects
- * /api/clients and /api/import, so this route is public unless we add
- * matcher).  Returns DB row counts + a fresh raw Meta API sample so we can
- * see what action_type names this account uses.
+ * Diagnostics endpoint.
  *
- * Usage:
+ * Usage (either parameter works):
  *   GET /api/admin/diagnostics?client_id=xxxx
+ *   GET /api/admin/diagnostics?token=xxxx     (the share_token from the
+ *                                              dashboard URL)
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const clientId = searchParams.get('client_id');
-  if (!clientId) {
-    return NextResponse.json({ error: 'client_id is required' }, { status: 400 });
+  const clientIdParam = searchParams.get('client_id');
+  const token = searchParams.get('token');
+  if (!clientIdParam && !token) {
+    return NextResponse.json({ error: 'client_id or token query param is required' }, { status: 400 });
   }
 
   await ensureDb();
 
   const client = (await queryOne<ClientRow>(
-    `SELECT client_id, name, instagram_account_id, meta_ad_account_id, meta_access_token FROM ${T} WHERE client_id = @id LIMIT 1`,
-    { id: clientId }
+    clientIdParam
+      ? `SELECT client_id, name, instagram_account_id, meta_ad_account_id, meta_access_token FROM ${T} WHERE client_id = @id LIMIT 1`
+      : `SELECT client_id, name, instagram_account_id, meta_ad_account_id, meta_access_token FROM ${T} WHERE share_token = @id LIMIT 1`,
+    { id: clientIdParam || token }
   )) as ClientRow | undefined;
 
   if (!client) {
-    return NextResponse.json({ error: 'client not found' }, { status: 404 });
+    return NextResponse.json({
+      error: 'client not found',
+      hint: 'Use either ?client_id=<uuid> (from /admin/clients/<id>) or ?token=<share_token> (from dashboard URL)'
+    }, { status: 404 });
   }
+  const clientId = client.client_id;
 
   // ── Row counts ──────────────────────────────────────────
   const counts: Record<string, number> = {};
