@@ -170,7 +170,17 @@ export default function ClientDetailPage() {
     }
   };
 
-  const fetchAllFromApi = async () => {
+  const fetchAllFromApi = async (full: boolean = false) => {
+    if (full) {
+      const ok = confirm(
+        "全期間の過去データを取得します。\n" +
+        "・Instagram: 約2年\n" +
+        "・Meta広告: 約37ヶ月\n" +
+        "・投稿: 最大3,000件\n\n" +
+        "APIコール数が多くなり、完了まで30〜60秒かかる場合があります。続行しますか？"
+      );
+      if (!ok) return;
+    }
     setFetchAllRunning(true);
     setFetchAllProgress(0);
     // Reset all states
@@ -182,7 +192,10 @@ export default function ClientDetailPage() {
     });
 
     try {
-      const evtSource = new EventSource(`/api/import/fetch-all?client_id=${clientId}`);
+      const url = full
+        ? `/api/import/fetch-all?client_id=${clientId}&full=1`
+        : `/api/import/fetch-all?client_id=${clientId}`;
+      const evtSource = new EventSource(url);
 
       evtSource.onmessage = (event) => {
         const data = JSON.parse(event.data) as { step: string; status: string; message: string; progress?: number };
@@ -423,10 +436,16 @@ export default function ClientDetailPage() {
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><Download className="w-5 h-5 text-gray-400" />API データ取得</h3>
               <p className="text-sm text-gray-500 mt-0.5">Meta Graph APIからデータを自動取得（リアルタイム進捗表示）</p>
             </div>
-            <Button onClick={fetchAllFromApi} disabled={fetchAllRunning} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
-              <RefreshCw className={`w-4 h-4 mr-2 ${fetchAllRunning ? "animate-spin" : ""}`} />
-              {fetchAllRunning ? "取得中..." : "一括取得"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => fetchAllFromApi(true)} disabled={fetchAllRunning} variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                <Clock className="w-4 h-4 mr-2" />
+                全期間取得
+              </Button>
+              <Button onClick={() => fetchAllFromApi(false)} disabled={fetchAllRunning} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+                <RefreshCw className={`w-4 h-4 mr-2 ${fetchAllRunning ? "animate-spin" : ""}`} />
+                {fetchAllRunning ? "取得中..." : "一括取得 (30日)"}
+              </Button>
+            </div>
           </div>
 
           {/* Progress bar */}
