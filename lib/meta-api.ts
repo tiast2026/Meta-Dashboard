@@ -16,7 +16,8 @@ const ADS_CHUNK_DAYS = 30;
 
 // Posts pagination
 const POSTS_PAGE_LIMIT = 50;
-const POSTS_MAX_PAGES = 5; // safety limit: 50 * 5 = 250 posts (Vercel timeout safe)
+const POSTS_MAX_PAGES = 5; // default: 50 * 5 = 250 posts (Vercel timeout safe)
+const POSTS_MAX_PAGES_FULL = 60; // historical: 50 * 60 = 3000 posts
 
 interface MetaPaging {
   cursors?: { after?: string };
@@ -180,13 +181,15 @@ export interface IgPost {
 export async function fetchIgPosts(
   igAccountId: string,
   token: string,
+  options?: { full?: boolean }
 ): Promise<IgPost[]> {
   const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,video_views';
   const posts: IgPost[] = [];
   let nextUrl: string | null = `${BASE_URL}/${igAccountId}/media?fields=${fields}&limit=${POSTS_PAGE_LIMIT}&access_token=${token}`;
   let page = 0;
+  const maxPages = options?.full ? POSTS_MAX_PAGES_FULL : POSTS_MAX_PAGES;
 
-  while (nextUrl && page < POSTS_MAX_PAGES) {
+  while (nextUrl && page < maxPages) {
     const res: MetaApiResponse<Record<string, unknown>> = await metaFetch<Record<string, unknown>>(nextUrl);
     if (!res.data || res.data.length === 0) break;
 
@@ -231,6 +234,7 @@ export interface IgTaggedPost {
 export async function fetchIgTaggedPosts(
   igAccountId: string,
   token: string,
+  options?: { full?: boolean }
 ): Promise<IgTaggedPost[]> {
   const fields = 'id,caption,media_url,permalink,timestamp,like_count,comments_count,username';
   const results: IgTaggedPost[] = [];
@@ -238,8 +242,9 @@ export async function fetchIgTaggedPosts(
   try {
     let nextUrl: string | null = `${BASE_URL}/${igAccountId}/tags?fields=${fields}&limit=${POSTS_PAGE_LIMIT}&access_token=${token}`;
     let page = 0;
+    const maxPages = options?.full ? POSTS_MAX_PAGES_FULL : POSTS_MAX_PAGES;
 
-    while (nextUrl && page < POSTS_MAX_PAGES) {
+    while (nextUrl && page < maxPages) {
       const res: MetaApiResponse<Record<string, unknown>> = await metaFetch<Record<string, unknown>>(nextUrl);
       if (!res.data || res.data.length === 0) break;
 

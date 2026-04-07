@@ -14,11 +14,21 @@ const T = table(DATASET_MASTER, 'clients');
 
 export const maxDuration = 60; // Vercel Pro: 60s, Hobby: 10s — will do best effort
 
+// Maximum lookback supported by Meta APIs
+const IG_INSIGHTS_MAX_DAYS = 720; // ~2 years
+const META_ADS_MAX_DAYS = 1110;   // ~37 months
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 export async function GET(request: NextRequest) {
   const clientId = request.nextUrl.searchParams.get('client_id');
   if (!clientId) {
     return new Response('client_id is required', { status: 400 });
   }
+  // ?full=1 → fetch maximum historical data instead of the default 30 days
+  const fullMode = request.nextUrl.searchParams.get('full') === '1';
 
   const client = await queryOne<Record<string, unknown>>(
     `SELECT instagram_account_id, meta_ad_account_id, meta_access_token FROM ${T} WHERE client_id = @id LIMIT 1`,
@@ -57,11 +67,17 @@ export async function GET(request: NextRequest) {
       ).length;
       let completedSteps = 0;
 
+      const now = new Date();
+      const igSince = fullMode ? isoDate(new Date(now.getTime() - IG_INSIGHTS_MAX_DAYS * 86400000)) : undefined;
+      const igUntil = fullMode ? isoDate(now) : undefined;
+      const adsSince = fullMode ? isoDate(new Date(now.getTime() - META_ADS_MAX_DAYS * 86400000)) : undefined;
+      const adsUntil = fullMode ? isoDate(now) : undefined;
+
       // --- 1. Instagram Daily Insights ---
       if (igId) {
-        send({ step: 'ig_daily', status: 'running', message: 'Instagram日次データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
+        send({ step: 'ig_daily', status: 'running', message: fullMode ? '全期間 Instagram日次データを取得中...' : 'Instagram日次データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
         try {
-          const insights = await fetchIgAccountInsights(igId, token);
+          const insights = await fetchIgAccountInsights(igId, token, igSince, igUntil);
           if (insights.length > 0) {
             const stmts: InStatement[] = insights.map((row) => ({
               sql: `INSERT OR REPLACE INTO instagram_daily_insights
@@ -89,9 +105,9 @@ export async function GET(request: NextRequest) {
 
       // --- 2. Instagram Posts ---
       if (igId) {
-        send({ step: 'ig_posts', status: 'running', message: 'Instagram投稿データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
+        send({ step: 'ig_posts', status: 'running', message: fullMode ? '全期間 Instagram投稿を取得中...' : 'Instagram投稿データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
         try {
-          const posts = await fetchIgPosts(igId, token);
+          const posts = await fetchIgPosts(igId, token, { full: fullMode });
           if (posts.length > 0) {
             const stmts: InStatement[] = posts.map((post) => ({
               sql: `INSERT OR REPLACE INTO instagram_posts
@@ -119,9 +135,9 @@ export async function GET(request: NextRequest) {
 
       // --- 3. Tagged Posts ---
       if (igId) {
-        send({ step: 'ig_tagged', status: 'running', message: 'タグ付け投稿を取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
+        send({ step: 'ig_tagged', status: 'running', message: fullMode ? '全期間 タグ付け投稿を取得中...' : 'タグ付け投稿を取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
         try {
-          const posts = await fetchIgTaggedPosts(igId, token);
+          const posts = await fetchIgTaggedPosts(igId, token, { full: fullMode });
           if (posts.length > 0) {
             const stmts: InStatement[] = posts.map((post) => ({
               sql: `INSERT OR REPLACE INTO instagram_tagged_posts
@@ -146,9 +162,9 @@ export async function GET(request: NextRequest) {
 
       // --- 4. Meta Ads ---
       if (adAccountId) {
-        send({ step: 'meta_ads', status: 'running', message: 'Meta広告データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
+        send({ step: 'meta_ads', status: 'running', message: fullMode ? '全期間 Meta広告データを取得中...' : 'Meta広告データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
         try {
-          const insights = await fetchMetaAds(adAccountId, token);
+          const insights = await fetchMetaAds(adAccountId, token, adsSince, adsUntil);
           if (insights.length > 0) {
             const stmts: InStatement[] = insights.map((row) => ({
               sql: `INSERT OR REPLACE INTO meta_ad_insights
