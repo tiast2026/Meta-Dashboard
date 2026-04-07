@@ -39,6 +39,30 @@ interface RefreshSummary {
   meta_ads: number | string;
 }
 
+// Backfill thresholds: if a table has fewer rows than this for a client we
+// assume the historical backfill never ran and request a wider date range
+// from the Meta API.
+const IG_DAILY_BACKFILL_THRESHOLD = 60;   // < ~2 months → backfill
+const META_ADS_BACKFILL_THRESHOLD = 60;
+const IG_INSIGHTS_BACKFILL_DAYS = 365;    // 1 year (cron is daily, second pass extends)
+const META_ADS_BACKFILL_DAYS = 365;
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+async function countRows(clientId: string, tableName: string): Promise<number> {
+  try {
+    const r = await db.execute({
+      sql: `SELECT COUNT(*) as c FROM ${tableName} WHERE client_id = ?`,
+      args: [clientId],
+    });
+    return Number(r.rows[0]?.c) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function refreshClient(c: ClientRow): Promise<RefreshSummary> {
   const summary: RefreshSummary = {
     client_id: c.client_id,
@@ -54,7 +78,15 @@ async function refreshClient(c: ClientRow): Promise<RefreshSummary> {
   // ── Instagram daily insights ─────────────────────────
   if (c.instagram_account_id) {
     try {
-      const rows = await fetchIgAccountInsights(c.instagram_account_id, token);
+      // Auto-detect: if local DB has very little data, request wider range
+      const existing = await countRows(c.client_id, 'instagram_daily_insights');
+      const igSince = existing < IG_DAILY_BACKFILL_THRESHOLD
+        ? isoDate(new Date(Date.now() - IG_INSIGHTS_BACKFILL_DAYS * 86400000))
+        : undefined;
+      const igUntil = existing < IG_DAILY_BACKFILL_THRESHOLD
+        ? isoDate(new Date())
+        : undefined;
+      const rows = await fetchIgAccountInsights(c.instagram_account_id, token, igSince, igUntil);
       if (rows.length > 0) {
         const stmts: InStatement[] = rows.map((row) => ({
           sql: `INSERT OR REPLACE INTO instagram_daily_insights
@@ -121,7 +153,14 @@ async function refreshClient(c: ClientRow): Promise<RefreshSummary> {
   // ── Meta Ads ───────────────────────────────────────
   if (c.meta_ad_account_id) {
     try {
-      const insights = await fetchMetaAds(c.meta_ad_account_id, token);
+      const existing = await countRows(c.client_id, 'meta_ad_insights');
+      const adsSince = existing < META_ADS_BACKFILL_THRESHOLD
+        ? isoDate(new Date(Date.now() - META_ADS_BACKFILL_DAYS * 86400000))
+        : undefined;
+      const adsUntil = existing < META_ADS_BACKFILL_THRESHOLD
+        ? isoDate(new Date())
+        : undefined;
+      const insights = await fetchMetaAds(c.meta_ad_account_id, token, adsSince, adsUntil);
       if (insights.length > 0) {
         const stmts: InStatement[] = insights.map((row) => ({
           sql: `INSERT OR REPLACE INTO meta_ad_insights
