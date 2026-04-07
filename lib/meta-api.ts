@@ -127,16 +127,33 @@ export async function fetchIgAccountInsights(
 
   for (const chunk of chunks) {
     // v22+: each metric is fetched individually so a single failure does not
-    // wipe out the rest of the chunk. `impressions` was deprecated in v22 and
-    // no longer returns daily time series for IG User. We keep `reach` and
-    // `follower_count` which still return per-day values[].
-    const [reachVals, followerVals] = await Promise.all([
+    // wipe out the rest of the chunk. `impressions` was deprecated in v22.
+    // `follower_count` returns DAILY new followers (i.e. delta), so we store
+    // it under `follows` rather than `followers`.
+    const [reachVals, followerDeltaVals] = await Promise.all([
       fetchIgMetricChunk(igAccountId, token, 'reach', chunk.since, chunk.until),
       fetchIgMetricChunk(igAccountId, token, 'follower_count', chunk.since, chunk.until),
     ]);
 
     for (const v of reachVals) ensure(v.end_time.slice(0, 10)).reach = Number(v.value) || 0;
-    for (const v of followerVals) ensure(v.end_time.slice(0, 10)).followers = Number(v.value) || 0;
+    for (const v of followerDeltaVals) ensure(v.end_time.slice(0, 10)).follows = Number(v.value) || 0;
+  }
+
+  // Stamp the absolute follower total (from the IG User object) onto the
+  // most recent daily row so the dashboard can show "current followers".
+  const sortedDates = Object.keys(byDate).sort();
+  if (sortedDates.length > 0) {
+    try {
+      const url = `${BASE_URL}/${igAccountId}?fields=followers_count&access_token=${token}`;
+      const res = await metaFetch<unknown>(url) as { followers_count?: number };
+      const total = Number(res.followers_count) || 0;
+      if (total > 0) {
+        const latest = sortedDates[sortedDates.length - 1];
+        byDate[latest].followers = total;
+      }
+    } catch (err) {
+      console.warn('IG followers_count fetch failed:', err instanceof Error ? err.message : err);
+    }
   }
 
   return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));

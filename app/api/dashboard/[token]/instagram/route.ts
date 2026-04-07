@@ -73,9 +73,9 @@ export async function GET(
     });
 
     const kpiResult = {
-      ...(kpi.rows[0] || {}),
+      ...(kpi.rows[0] ? Object.fromEntries(Object.entries(kpi.rows[0])) : {}),
       followers: latestFollowers.rows[0]?.followers || 0,
-    };
+    } as Record<string, unknown>;
 
     const previousKpi = await db.execute({
       sql: `SELECT
@@ -101,39 +101,68 @@ export async function GET(
     });
 
     const previousKpiResult = {
-      ...(previousKpi.rows[0] || {}),
+      ...(previousKpi.rows[0] ? Object.fromEntries(Object.entries(previousKpi.rows[0])) : {}),
       followers: prevLatestFollowers.rows[0]?.followers || 0,
+    } as Record<string, unknown>;
+
+    // Always merge post-level aggregates into the KPI. The IG daily insights
+    // API (v22+) only returns reach + follower_count, so likes/comments/saves
+    // /shares/impressions all live on the post records.
+    const postKpi = await db.execute({
+      sql: `SELECT
+        COUNT(*) as posts_count,
+        COALESCE(SUM(likes), 0) as likes,
+        COALESCE(SUM(comments), 0) as comments,
+        COALESCE(SUM(saves), 0) as saves,
+        COALESCE(SUM(shares), 0) as shares,
+        COALESCE(SUM(impressions), 0) as impressions
+      FROM instagram_posts
+      WHERE client_id = ? AND posted_at >= ? AND posted_at <= ?`,
+      args: [clientId, from, to + 'T23:59:59'],
+    });
+    const postKpiRow = (postKpi.rows[0] ? Object.fromEntries(Object.entries(postKpi.rows[0])) : {}) as Record<string, unknown>;
+    const prevPostKpi = await db.execute({
+      sql: `SELECT
+        COUNT(*) as posts_count,
+        COALESCE(SUM(likes), 0) as likes,
+        COALESCE(SUM(comments), 0) as comments,
+        COALESCE(SUM(saves), 0) as saves,
+        COALESCE(SUM(shares), 0) as shares,
+        COALESCE(SUM(impressions), 0) as impressions
+      FROM instagram_posts
+      WHERE client_id = ? AND posted_at >= ? AND posted_at <= ?`,
+      args: [clientId, prevFromStr, prevToStr + 'T23:59:59'],
+    });
+    const prevPostKpiRow = (prevPostKpi.rows[0] ? Object.fromEntries(Object.entries(prevPostKpi.rows[0])) : {}) as Record<string, unknown>;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const finalKpi: any = {
+      ...kpiResult,
+      likes: Number(postKpiRow.likes) || 0,
+      comments: Number(postKpiRow.comments) || 0,
+      saves: Number(postKpiRow.saves) || 0,
+      shares: Number(postKpiRow.shares) || 0,
+      posts_count: Number(postKpiRow.posts_count) || 0,
+      // Prefer post impressions when daily impressions are 0 (always 0 in v22)
+      impressions: Number(kpiResult.impressions) || Number(postKpiRow.impressions) || 0,
     };
 
-    // Fallback: if daily insights are empty, compute KPI from posts
-    const hasDaily = daily.rows.length > 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let finalKpi: any = kpiResult;
-    if (!hasDaily) {
-      const postKpi = await db.execute({
-        sql: `SELECT
-          COUNT(*) as posts_count,
-          COALESCE(SUM(likes), 0) as likes,
-          COALESCE(SUM(comments), 0) as comments,
-          COALESCE(SUM(saves), 0) as saves,
-          COALESCE(SUM(shares), 0) as shares,
-          COALESCE(SUM(impressions), 0) as impressions,
-          COALESCE(SUM(reach), 0) as reach
-        FROM instagram_posts
-        WHERE client_id = ? AND posted_at >= ? AND posted_at <= ?`,
-        args: [clientId, from, to + 'T23:59:59'],
-      });
-      const row = postKpi.rows[0];
-      if (row) {
-        finalKpi = { ...Object.fromEntries(Object.entries(row)), followers: kpiResult.followers || 0, follows: 0, interactions: 0 };
-      }
-    }
+    const finalPrevKpi: any = {
+      ...previousKpiResult,
+      likes: Number(prevPostKpiRow.likes) || 0,
+      comments: Number(prevPostKpiRow.comments) || 0,
+      saves: Number(prevPostKpiRow.saves) || 0,
+      shares: Number(prevPostKpiRow.shares) || 0,
+      posts_count: Number(prevPostKpiRow.posts_count) || 0,
+      impressions: Number(previousKpiResult.impressions) || Number(prevPostKpiRow.impressions) || 0,
+    };
 
     return NextResponse.json({
       client: { name: clientName },
       daily: daily.rows,
       kpi: finalKpi,
-      previous_kpi: previousKpiResult,
+      previous_kpi: finalPrevKpi,
     });
   } catch (err) {
     console.error('Dashboard instagram error:', err);
