@@ -335,14 +335,14 @@ const EMPTY_ACTIONS: MetaAdActions = {
 
 /**
  * Map Meta `actions[]` array (and `action_values[]` for purchase value) into
- * our flat schema. Meta returns the same conversion under multiple action_type
- * names depending on where the pixel/conversion was set up — e.g.
- * `purchase`, `offsite_conversion.fb_pixel_purchase`,
- * `omni_purchase`, `web_in_store_purchase` — so we accept all aliases.
+ * our flat schema. Meta returns the same conversion under many action_type
+ * names depending on the channel — e.g. `purchase`, `omni_purchase`,
+ * `offsite_conversion.fb_pixel_purchase`, `web_in_store_purchase`,
+ * `onsite_web_purchase`, `onsite_web_app_purchase`, `web_app_in_store_purchase` —
+ * and they all have the SAME value (one count per channel reporting).
  *
- * Strategy: prefer the most specific (offsite_conversion.fb_pixel_*) and skip
- * the omni_* aggregates to avoid double-counting. Falls back to suffix
- * matching for custom conversion action_types.
+ * Strategy: take the FIRST matching alias only (priority order). Never sum
+ * multiple aliases. omni_* are skipped because they double-count.
  */
 function mapActions(
   actions: { action_type: string; value: string }[] | undefined,
@@ -351,84 +351,113 @@ function mapActions(
   const out: MetaAdActions = { ...EMPTY_ACTIONS };
   if (!actions) return out;
 
-  // We pick exactly ONE source per metric to avoid double-counting:
-  //  1. offsite_conversion.fb_pixel_<metric>  (most specific, most reliable)
-  //  2. <metric>                              (generic fallback)
-  // Within a single account these are usually equivalent for the same
-  // conversion event, but we never accumulate both.
+  // Priority-ordered alias list. The FIRST one present wins.
   type MetricKey = Exclude<keyof MetaAdActions, 'purchase_value'>;
   const metricMap: { key: MetricKey; aliases: string[] }[] = [
-    { key: 'purchase', aliases: ['offsite_conversion.fb_pixel_purchase', 'purchase', 'web_in_store_purchase'] },
-    { key: 'add_to_cart', aliases: ['offsite_conversion.fb_pixel_add_to_cart', 'add_to_cart'] },
-    { key: 'initiate_checkout', aliases: ['offsite_conversion.fb_pixel_initiate_checkout', 'initiate_checkout'] },
-    { key: 'view_content', aliases: ['offsite_conversion.fb_pixel_view_content', 'view_content'] },
-    { key: 'lead', aliases: ['offsite_conversion.fb_pixel_lead', 'lead'] },
-    { key: 'complete_registration', aliases: ['offsite_conversion.fb_pixel_complete_registration', 'complete_registration'] },
+    {
+      key: 'purchase',
+      aliases: [
+        'offsite_conversion.fb_pixel_purchase',
+        'purchase',
+        'onsite_web_purchase',
+        'onsite_web_app_purchase',
+        'web_in_store_purchase',
+        'web_app_in_store_purchase',
+      ],
+    },
+    {
+      key: 'add_to_cart',
+      aliases: [
+        'offsite_conversion.fb_pixel_add_to_cart',
+        'add_to_cart',
+        'onsite_web_add_to_cart',
+        'onsite_web_app_add_to_cart',
+      ],
+    },
+    {
+      key: 'initiate_checkout',
+      aliases: [
+        'offsite_conversion.fb_pixel_initiate_checkout',
+        'initiate_checkout',
+        'onsite_web_initiate_checkout',
+      ],
+    },
+    {
+      key: 'view_content',
+      aliases: [
+        'offsite_conversion.fb_pixel_view_content',
+        'view_content',
+        'onsite_web_view_content',
+        'onsite_web_app_view_content',
+        'onsite_app_view_content',
+        'onsite_conversion.view_content',
+      ],
+    },
+    {
+      key: 'lead',
+      aliases: [
+        'offsite_conversion.fb_pixel_lead',
+        'lead',
+        'leadgen_grouped',
+      ],
+    },
+    {
+      key: 'complete_registration',
+      aliases: [
+        'offsite_conversion.fb_pixel_complete_registration',
+        'complete_registration',
+        'offsite_complete_registration_add_meta_leads',
+      ],
+    },
     { key: 'contact', aliases: ['offsite_conversion.fb_pixel_contact', 'contact'] },
     { key: 'subscribe', aliases: ['offsite_conversion.fb_pixel_subscribe', 'subscribe'] },
     { key: 'search', aliases: ['offsite_conversion.fb_pixel_search', 'search'] },
     { key: 'add_payment_info', aliases: ['offsite_conversion.fb_pixel_add_payment_info', 'add_payment_info'] },
-    { key: 'add_to_wishlist', aliases: ['offsite_conversion.fb_pixel_add_to_wishlist', 'add_to_wishlist'] },
+    { key: 'add_to_wishlist', aliases: ['offsite_conversion.fb_pixel_add_to_wishlist', 'add_to_wishlist', 'onsite_conversion.add_to_wishlist'] },
     { key: 'page_engagement', aliases: ['page_engagement'] },
     { key: 'post_engagement', aliases: ['post_engagement'] },
     { key: 'video_view', aliases: ['video_view'] },
     { key: 'link_click', aliases: ['link_click'] },
   ];
 
-  // Build a quick lookup by action_type
+  // Build a quick lookup by action_type. Skip omni_* aggregates because they
+  // duplicate the per-channel events.
   const byType = new Map<string, number>();
   for (const a of actions) {
-    if (a.action_type.startsWith('omni_')) continue; // skip aggregate aliases
-    byType.set(a.action_type, (byType.get(a.action_type) || 0) + (Number(a.value) || 0));
+    if (a.action_type.startsWith('omni_')) continue;
+    byType.set(a.action_type, Number(a.value) || 0);
   }
 
   for (const { key, aliases } of metricMap) {
-    let val = 0;
     for (const alias of aliases) {
       if (byType.has(alias)) {
-        val = byType.get(alias) || 0;
-        break; // take first matching alias
+        out[key] = byType.get(alias) || 0;
+        break; // first match wins; never sum multiple aliases
       }
     }
-    // Fallback: if none of the canonical aliases were present, look for any
-    // custom conversion that ends with the metric name. This catches things
-    // like `offsite_conversion.custom.123456` aliased to whatever standard
-    // event the user picked, e.g. `purchase`.
-    if (val === 0) {
-      byType.forEach((v, t) => {
-        if (t.endsWith(`.${key}`) || t.endsWith(`_${key}`)) {
-          val += v;
-        }
-      });
-    }
-    out[key] = val;
   }
 
-  // Purchase value (revenue) for ROAS calculation — only from specific
-  // pixel events to avoid summing omni aggregates.
+  // Purchase value (revenue) for ROAS — same priority approach.
   if (actionValues) {
-    let pv = 0;
-    let pickedSource: string | null = null;
+    const valueByType = new Map<string, number>();
     for (const a of actionValues) {
-      const t = a.action_type;
-      const v = Number(a.value) || 0;
-      if (v === 0) continue;
-      if (t.startsWith('omni_')) continue;
-      if (t === 'offsite_conversion.fb_pixel_purchase') {
-        if (pickedSource !== 'offsite_conversion.fb_pixel_purchase') {
-          pv = 0;
-          pickedSource = 'offsite_conversion.fb_pixel_purchase';
-        }
-        pv += v;
-      } else if (t === 'purchase' && pickedSource === null) {
-        pickedSource = 'purchase';
-        pv += v;
-      } else if (t === 'web_in_store_purchase' && pickedSource === null) {
-        pickedSource = 'web_in_store_purchase';
-        pv += v;
+      if (a.action_type.startsWith('omni_')) continue;
+      valueByType.set(a.action_type, Number(a.value) || 0);
+    }
+    const valueAliases = [
+      'offsite_conversion.fb_pixel_purchase',
+      'purchase',
+      'onsite_web_purchase',
+      'onsite_web_app_purchase',
+      'web_in_store_purchase',
+      'web_app_in_store_purchase',
+    ];
+    for (const alias of valueAliases) {
+      if (valueByType.has(alias)) {
+        out.purchase_value = valueByType.get(alias) || 0;
+        break;
       }
     }
-    out.purchase_value = pv;
   }
 
   return out;
