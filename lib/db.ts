@@ -59,6 +59,13 @@ export async function ensureDb() {
     // column already exists
   }
 
+  // Add website_actions column if missing
+  try {
+    await db.execute('ALTER TABLE meta_ad_insights ADD COLUMN website_actions INTEGER DEFAULT 0');
+  } catch {
+    // column already exists
+  }
+
   const schemaPath = path.join(process.cwd(), 'lib', 'schema.sql');
   const schema = fs.readFileSync(schemaPath, 'utf-8');
   const statements = schema

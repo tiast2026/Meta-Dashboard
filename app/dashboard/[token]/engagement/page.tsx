@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { useDashboard, useFetchData } from "@/lib/use-dashboard";
+import { ErrorBanner } from "@/components/dashboard/error-banner";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EngagementChart } from "@/components/dashboard/engagement-chart";
 import { KpiCard } from "@/components/dashboard/kpi-card";
@@ -20,7 +21,7 @@ interface PostsData {
 function EngagementContent() {
   const { token, from, to, handleDateChange } = useDashboard();
 
-  const { data: igData, loading: igLoading } = useFetchData<IgData>(
+  const { data: igData, loading: igLoading, error: igError } = useFetchData<IgData>(
     `/api/dashboard/${token}/instagram?from=${from}&to=${to}`
   );
   const { data: postsData } = useFetchData<PostsData>(
@@ -55,6 +56,7 @@ function EngagementContent() {
       />
 
       <div className="px-6 py-6 space-y-6">
+        {igError && <ErrorBanner message={igError} />}
         {igLoading ? (
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
             {Array.from({ length: 5 }).map((_, i) => (

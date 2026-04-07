@@ -41,14 +41,14 @@ export async function POST(request: NextRequest) {
 
     const statements: InStatement[] = insights.map((row) => ({
       sql: `INSERT OR REPLACE INTO meta_ad_insights
-        (client_id, date, campaign_id, campaign_name, campaign_objective,
+        (client_id, date, publisher_platform, campaign_id, campaign_name, campaign_objective,
          adset_id, adset_name, ad_id, ad_name,
-         impressions, reach, clicks, results, spend)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         impressions, reach, clicks, results, website_actions, spend)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
-        client_id, row.date, row.campaign_id, row.campaign_name, row.campaign_objective,
+        client_id, row.date, row.publisher_platform || '', row.campaign_id, row.campaign_name, row.campaign_objective,
         row.adset_id, row.adset_name, row.ad_id, row.ad_name,
-        row.impressions, row.reach, row.clicks, row.results, row.spend,
+        row.impressions, row.reach, row.clicks, row.results, row.website_actions, row.spend,
       ],
     }));
 

@@ -4,7 +4,7 @@
  * Supports full historical data retrieval with pagination and date chunking.
  */
 
-const API_VERSION = 'v21.0';
+const API_VERSION = 'v22.0';
 const BASE_URL = `https://graph.facebook.com/${API_VERSION}`;
 const TIMEOUT = 30000;
 
@@ -67,51 +67,76 @@ export interface IgDailyInsight {
   website_clicks: number;
 }
 
+/**
+ * Last error captured during the most recent fetchIgAccountInsights call.
+ * Used so callers can surface a useful error message when the result is empty.
+ */
+let lastIgInsightsError: string | null = null;
+export function getLastIgInsightsError(): string | null {
+  return lastIgInsightsError;
+}
+
+/**
+ * Fetch a single metric for a date chunk. Returns [] on failure.
+ * Some metrics require metric_type=total_value (v22+).
+ */
+async function fetchIgMetricChunk(
+  igAccountId: string,
+  token: string,
+  metric: string,
+  since: string,
+  until: string,
+  metricType?: 'total_value'
+): Promise<{ end_time: string; value: number }[]> {
+  const tt = metricType ? `&metric_type=${metricType}` : '';
+  const url = `${BASE_URL}/${igAccountId}/insights?metric=${metric}&period=day${tt}&since=${since}&until=${until}&access_token=${token}`;
+  try {
+    const res = await metaFetch<{ name: string; values: { end_time: string; value: number }[] }>(url);
+    if (!res.data || res.data.length === 0) return [];
+    return res.data[0].values || [];
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    lastIgInsightsError = `${metric}: ${msg}`;
+    console.warn(`IG metric ${metric} ${since}~${until} failed:`, msg);
+    return [];
+  }
+}
+
 export async function fetchIgAccountInsights(
   igAccountId: string,
   token: string,
   since?: string,
   until?: string
 ): Promise<IgDailyInsight[]> {
+  lastIgInsightsError = null;
   const now = new Date();
   const endDate = until ? new Date(until) : now;
   // Default: 30 days (safe for Vercel timeout). Pass since/until for longer ranges.
   const defaultStart = new Date(now.getTime() - 30 * 86400000);
   const startDate = since ? new Date(since) : defaultStart;
 
-  const metrics = [
-    'impressions',
-    'reach',
-    'follower_count',
-  ].join(',');
-
   const chunks = dateChunks(startDate, endDate, IG_INSIGHTS_CHUNK_DAYS);
   const byDate: Record<string, IgDailyInsight> = {};
 
-  for (const chunk of chunks) {
-    try {
-      const url = `${BASE_URL}/${igAccountId}/insights?metric=${metrics}&period=day&since=${chunk.since}&until=${chunk.until}&access_token=${token}`;
-      const res = await metaFetch<{ name: string; values: { end_time: string; value: number }[] }>(url);
-
-      if (!res.data) continue;
-
-      for (const metric of res.data) {
-        for (const val of metric.values) {
-          const date = val.end_time.slice(0, 10);
-          if (!byDate[date]) {
-            byDate[date] = { date, impressions: 0, reach: 0, followers: 0, follows: 0, profile_views: 0, website_clicks: 0 };
-          }
-          if (metric.name === 'impressions') byDate[date].impressions = val.value;
-          if (metric.name === 'reach') byDate[date].reach = val.value;
-          if (metric.name === 'follower_count') byDate[date].followers = val.value;
-          if (metric.name === 'profile_views') byDate[date].profile_views = val.value;
-          if (metric.name === 'website_clicks') byDate[date].website_clicks = val.value;
-        }
-      }
-    } catch (err) {
-      // Some date ranges may have no data — continue with next chunk
-      console.warn(`IG insights chunk ${chunk.since}~${chunk.until} failed:`, err);
+  const ensure = (date: string) => {
+    if (!byDate[date]) {
+      byDate[date] = { date, impressions: 0, reach: 0, followers: 0, follows: 0, profile_views: 0, website_clicks: 0 };
     }
+    return byDate[date];
+  };
+
+  for (const chunk of chunks) {
+    // v22+: each metric is fetched individually so a single failure does not
+    // wipe out the rest of the chunk. `impressions` was deprecated in v22 and
+    // no longer returns daily time series for IG User. We keep `reach` and
+    // `follower_count` which still return per-day values[].
+    const [reachVals, followerVals] = await Promise.all([
+      fetchIgMetricChunk(igAccountId, token, 'reach', chunk.since, chunk.until),
+      fetchIgMetricChunk(igAccountId, token, 'follower_count', chunk.since, chunk.until),
+    ]);
+
+    for (const v of reachVals) ensure(v.end_time.slice(0, 10)).reach = Number(v.value) || 0;
+    for (const v of followerVals) ensure(v.end_time.slice(0, 10)).followers = Number(v.value) || 0;
   }
 
   return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
@@ -239,11 +264,13 @@ export interface MetaAdInsight {
   adset_name: string;
   ad_id: string;
   ad_name: string;
+  publisher_platform: string;
   impressions: number;
   reach: number;
   clicks: number;
   spend: number;
   results: number;
+  website_actions: number;
 }
 
 export async function fetchMetaAds(
@@ -265,7 +292,7 @@ export async function fetchMetaAds(
 
   for (const chunk of chunks) {
     try {
-      let nextUrl: string | null = `${BASE_URL}/${accountId}/insights?fields=${fields}&level=ad&time_range={"since":"${chunk.since}","until":"${chunk.until}"}&time_increment=1&limit=500&access_token=${token}`;
+      let nextUrl: string | null = `${BASE_URL}/${accountId}/insights?fields=${fields}&level=ad&breakdowns=publisher_platform&time_range={"since":"${chunk.since}","until":"${chunk.until}"}&time_increment=1&limit=500&access_token=${token}`;
       let page = 0;
 
       while (nextUrl && page < 10) {
@@ -274,11 +301,16 @@ export async function fetchMetaAds(
 
         for (const row of res.data) {
           let results = 0;
+          let website_actions = 0;
           const actions = row.actions as { action_type: string; value: string }[] | undefined;
           if (actions) {
             for (const a of actions) {
+              const v = Number(a.value) || 0;
               if (['lead', 'purchase', 'complete_registration', 'link_click'].includes(a.action_type)) {
-                results += Number(a.value) || 0;
+                results += v;
+              }
+              if (a.action_type.startsWith('offsite_conversion.') || a.action_type === 'link_click') {
+                website_actions += v;
               }
             }
           }
@@ -292,11 +324,13 @@ export async function fetchMetaAds(
             adset_name: String(row.adset_name || ''),
             ad_id: String(row.ad_id || ''),
             ad_name: String(row.ad_name || ''),
+            publisher_platform: String(row.publisher_platform || ''),
             impressions: Number(row.impressions) || 0,
             reach: Number(row.reach) || 0,
             clicks: Number(row.clicks) || 0,
             spend: Number(row.spend) || 0,
             results,
+            website_actions,
           });
         }
 

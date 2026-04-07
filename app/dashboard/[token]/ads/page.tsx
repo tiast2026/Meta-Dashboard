@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { Eye, Target, MousePointerClick } from "lucide-react";
 import { useDashboard, useFetchData } from "@/lib/use-dashboard";
+import { ErrorBanner } from "@/components/dashboard/error-banner";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { DailyTrendChart } from "@/components/dashboard/daily-trend-chart";
@@ -26,7 +27,7 @@ interface AdsData {
 function AdsContent() {
   const { token, from, to, handleDateChange } = useDashboard();
 
-  const { data, loading } = useFetchData<AdsData>(
+  const { data, loading, error } = useFetchData<AdsData>(
     `/api/dashboard/${token}/meta-ads?from=${from}&to=${to}`
   );
 
@@ -44,6 +45,7 @@ function AdsContent() {
       />
 
       <div className="px-6 py-6 space-y-6">
+        {error && <ErrorBanner message={error} />}
         {loading ? (
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
             {Array.from({ length: 5 }).map((_, i) => (

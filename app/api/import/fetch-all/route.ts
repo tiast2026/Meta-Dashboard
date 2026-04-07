@@ -6,6 +6,7 @@ import {
   fetchIgPosts,
   fetchIgTaggedPosts,
   fetchMetaAds,
+  getLastIgInsightsError,
 } from '@/lib/meta-api';
 import type { InStatement } from '@libsql/client';
 
@@ -73,7 +74,13 @@ export async function GET(request: NextRequest) {
             }
             send({ step: 'ig_daily', status: 'done', message: `${insights.length}件取得完了`, progress: Math.round((++completedSteps / totalSteps) * 100) });
           } else {
-            send({ step: 'ig_daily', status: 'done', message: 'データなし', progress: Math.round((++completedSteps / totalSteps) * 100) });
+            const apiErr = getLastIgInsightsError();
+            send({
+              step: 'ig_daily',
+              status: apiErr ? 'error' : 'done',
+              message: apiErr ? `Meta APIエラー: ${apiErr}` : 'データなし',
+              progress: Math.round((++completedSteps / totalSteps) * 100),
+            });
           }
         } catch (err) {
           send({ step: 'ig_daily', status: 'error', message: err instanceof Error ? err.message : String(err), progress: Math.round((++completedSteps / totalSteps) * 100) });
@@ -145,14 +152,14 @@ export async function GET(request: NextRequest) {
           if (insights.length > 0) {
             const stmts: InStatement[] = insights.map((row) => ({
               sql: `INSERT OR REPLACE INTO meta_ad_insights
-                (client_id, date, campaign_id, campaign_name, campaign_objective,
+                (client_id, date, publisher_platform, campaign_id, campaign_name, campaign_objective,
                  adset_id, adset_name, ad_id, ad_name,
-                 impressions, reach, clicks, results, spend)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 impressions, reach, clicks, results, website_actions, spend)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               args: [
-                clientId, row.date, row.campaign_id, row.campaign_name, row.campaign_objective,
+                clientId, row.date, row.publisher_platform || '', row.campaign_id, row.campaign_name, row.campaign_objective,
                 row.adset_id, row.adset_name, row.ad_id, row.ad_name,
-                row.impressions, row.reach, row.clicks, row.results, row.spend,
+                row.impressions, row.reach, row.clicks, row.results, row.website_actions, row.spend,
               ],
             }));
             for (let i = 0; i < stmts.length; i += 100) {
