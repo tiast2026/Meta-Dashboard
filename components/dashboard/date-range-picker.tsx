@@ -226,10 +226,10 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-xl border border-gray-200 shadow-2xl overflow-hidden">
-            <div className="flex">
+          <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-xl border border-gray-200 shadow-2xl overflow-hidden max-w-[calc(100vw-2rem)]">
+            <div className="flex flex-col sm:flex-row">
               {/* Preset sidebar */}
-              <div className="w-32 border-r border-gray-100 bg-gray-50/60 py-2">
+              <div className="w-full sm:w-32 border-b sm:border-b-0 sm:border-r border-gray-100 bg-gray-50/60 py-2 flex sm:block overflow-x-auto">
                 {PRESETS.map((preset) => (
                   <button
                     key={preset.key}
