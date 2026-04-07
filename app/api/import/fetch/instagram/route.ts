@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryOne, table, DATASET_MASTER } from '@/lib/bq';
 import { db, ensureDb } from '@/lib/db';
-import { fetchIgAccountInsights } from '@/lib/meta-api';
+import { fetchIgAccountInsights, getLastIgInsightsError } from '@/lib/meta-api';
 import type { InStatement } from '@libsql/client';
 
 const T = table(DATASET_MASTER, 'clients');
@@ -33,7 +33,14 @@ export async function POST(request: NextRequest) {
     const insights = await fetchIgAccountInsights(igId, token, since, until);
 
     if (insights.length === 0) {
-      return NextResponse.json({ success: true, message: '取得可能なデータがありませんでした', rowCount: 0 });
+      const apiErr = getLastIgInsightsError();
+      return NextResponse.json({
+        success: false,
+        message: apiErr
+          ? `Meta APIがデータを返しませんでした (${apiErr})`
+          : '取得可能なデータがありませんでした',
+        rowCount: 0,
+      }, { status: apiErr ? 502 : 200 });
     }
 
     await ensureDb();

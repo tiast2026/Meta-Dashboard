@@ -6,6 +6,7 @@ import {
   fetchIgPosts,
   fetchIgTaggedPosts,
   fetchMetaAds,
+  getLastIgInsightsError,
 } from '@/lib/meta-api';
 import type { InStatement } from '@libsql/client';
 
@@ -73,7 +74,13 @@ export async function GET(request: NextRequest) {
             }
             send({ step: 'ig_daily', status: 'done', message: `${insights.length}件取得完了`, progress: Math.round((++completedSteps / totalSteps) * 100) });
           } else {
-            send({ step: 'ig_daily', status: 'done', message: 'データなし', progress: Math.round((++completedSteps / totalSteps) * 100) });
+            const apiErr = getLastIgInsightsError();
+            send({
+              step: 'ig_daily',
+              status: apiErr ? 'error' : 'done',
+              message: apiErr ? `Meta APIエラー: ${apiErr}` : 'データなし',
+              progress: Math.round((++completedSteps / totalSteps) * 100),
+            });
           }
         } catch (err) {
           send({ step: 'ig_daily', status: 'error', message: err instanceof Error ? err.message : String(err), progress: Math.round((++completedSteps / totalSteps) * 100) });
