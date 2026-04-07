@@ -339,6 +339,10 @@ const EMPTY_ACTIONS: MetaAdActions = {
  * names depending on where the pixel/conversion was set up — e.g.
  * `purchase`, `offsite_conversion.fb_pixel_purchase`,
  * `omni_purchase`, `web_in_store_purchase` — so we accept all aliases.
+ *
+ * Strategy: prefer the most specific (offsite_conversion.fb_pixel_*) and skip
+ * the omni_* aggregates to avoid double-counting. Falls back to suffix
+ * matching for custom conversion action_types.
  */
 function mapActions(
   actions: { action_type: string; value: string }[] | undefined,
@@ -347,48 +351,84 @@ function mapActions(
   const out: MetaAdActions = { ...EMPTY_ACTIONS };
   if (!actions) return out;
 
-  const acc = (key: keyof MetaAdActions, v: number) => {
-    out[key] = (out[key] || 0) + v;
-  };
+  // We pick exactly ONE source per metric to avoid double-counting:
+  //  1. offsite_conversion.fb_pixel_<metric>  (most specific, most reliable)
+  //  2. <metric>                              (generic fallback)
+  // Within a single account these are usually equivalent for the same
+  // conversion event, but we never accumulate both.
+  type MetricKey = Exclude<keyof MetaAdActions, 'purchase_value'>;
+  const metricMap: { key: MetricKey; aliases: string[] }[] = [
+    { key: 'purchase', aliases: ['offsite_conversion.fb_pixel_purchase', 'purchase', 'web_in_store_purchase'] },
+    { key: 'add_to_cart', aliases: ['offsite_conversion.fb_pixel_add_to_cart', 'add_to_cart'] },
+    { key: 'initiate_checkout', aliases: ['offsite_conversion.fb_pixel_initiate_checkout', 'initiate_checkout'] },
+    { key: 'view_content', aliases: ['offsite_conversion.fb_pixel_view_content', 'view_content'] },
+    { key: 'lead', aliases: ['offsite_conversion.fb_pixel_lead', 'lead'] },
+    { key: 'complete_registration', aliases: ['offsite_conversion.fb_pixel_complete_registration', 'complete_registration'] },
+    { key: 'contact', aliases: ['offsite_conversion.fb_pixel_contact', 'contact'] },
+    { key: 'subscribe', aliases: ['offsite_conversion.fb_pixel_subscribe', 'subscribe'] },
+    { key: 'search', aliases: ['offsite_conversion.fb_pixel_search', 'search'] },
+    { key: 'add_payment_info', aliases: ['offsite_conversion.fb_pixel_add_payment_info', 'add_payment_info'] },
+    { key: 'add_to_wishlist', aliases: ['offsite_conversion.fb_pixel_add_to_wishlist', 'add_to_wishlist'] },
+    { key: 'page_engagement', aliases: ['page_engagement'] },
+    { key: 'post_engagement', aliases: ['post_engagement'] },
+    { key: 'video_view', aliases: ['video_view'] },
+    { key: 'link_click', aliases: ['link_click'] },
+  ];
 
+  // Build a quick lookup by action_type
+  const byType = new Map<string, number>();
   for (const a of actions) {
-    const t = a.action_type;
-    const v = Number(a.value) || 0;
-    if (v === 0) continue;
-
-    // Use the most specific (offsite_conversion.fb_pixel_*) when available so
-    // we don't double-count omni_* aliases. The Meta API will return both, so
-    // we prefer offsite_conversion variants and skip the omni aliases.
-    if (t.startsWith('omni_')) continue;
-
-    if (t === 'purchase' || t === 'offsite_conversion.fb_pixel_purchase' || t === 'web_in_store_purchase') acc('purchase', v);
-    else if (t === 'add_to_cart' || t === 'offsite_conversion.fb_pixel_add_to_cart') acc('add_to_cart', v);
-    else if (t === 'initiate_checkout' || t === 'offsite_conversion.fb_pixel_initiate_checkout') acc('initiate_checkout', v);
-    else if (t === 'view_content' || t === 'offsite_conversion.fb_pixel_view_content') acc('view_content', v);
-    else if (t === 'lead' || t === 'offsite_conversion.fb_pixel_lead') acc('lead', v);
-    else if (t === 'complete_registration' || t === 'offsite_conversion.fb_pixel_complete_registration') acc('complete_registration', v);
-    else if (t === 'contact' || t === 'offsite_conversion.fb_pixel_contact') acc('contact', v);
-    else if (t === 'subscribe' || t === 'offsite_conversion.fb_pixel_subscribe') acc('subscribe', v);
-    else if (t === 'search' || t === 'offsite_conversion.fb_pixel_search') acc('search', v);
-    else if (t === 'add_payment_info' || t === 'offsite_conversion.fb_pixel_add_payment_info') acc('add_payment_info', v);
-    else if (t === 'add_to_wishlist' || t === 'offsite_conversion.fb_pixel_add_to_wishlist') acc('add_to_wishlist', v);
-    else if (t === 'page_engagement') acc('page_engagement', v);
-    else if (t === 'post_engagement') acc('post_engagement', v);
-    else if (t === 'video_view') acc('video_view', v);
-    else if (t === 'link_click') acc('link_click', v);
+    if (a.action_type.startsWith('omni_')) continue; // skip aggregate aliases
+    byType.set(a.action_type, (byType.get(a.action_type) || 0) + (Number(a.value) || 0));
   }
 
-  // Purchase value (revenue) for ROAS calculation
+  for (const { key, aliases } of metricMap) {
+    let val = 0;
+    for (const alias of aliases) {
+      if (byType.has(alias)) {
+        val = byType.get(alias) || 0;
+        break; // take first matching alias
+      }
+    }
+    // Fallback: if none of the canonical aliases were present, look for any
+    // custom conversion that ends with the metric name. This catches things
+    // like `offsite_conversion.custom.123456` aliased to whatever standard
+    // event the user picked, e.g. `purchase`.
+    if (val === 0) {
+      byType.forEach((v, t) => {
+        if (t.endsWith(`.${key}`) || t.endsWith(`_${key}`)) {
+          val += v;
+        }
+      });
+    }
+    out[key] = val;
+  }
+
+  // Purchase value (revenue) for ROAS calculation — only from specific
+  // pixel events to avoid summing omni aggregates.
   if (actionValues) {
+    let pv = 0;
+    let pickedSource: string | null = null;
     for (const a of actionValues) {
       const t = a.action_type;
       const v = Number(a.value) || 0;
       if (v === 0) continue;
       if (t.startsWith('omni_')) continue;
-      if (t === 'purchase' || t === 'offsite_conversion.fb_pixel_purchase' || t === 'web_in_store_purchase') {
-        out.purchase_value += v;
+      if (t === 'offsite_conversion.fb_pixel_purchase') {
+        if (pickedSource !== 'offsite_conversion.fb_pixel_purchase') {
+          pv = 0;
+          pickedSource = 'offsite_conversion.fb_pixel_purchase';
+        }
+        pv += v;
+      } else if (t === 'purchase' && pickedSource === null) {
+        pickedSource = 'purchase';
+        pv += v;
+      } else if (t === 'web_in_store_purchase' && pickedSource === null) {
+        pickedSource = 'web_in_store_purchase';
+        pv += v;
       }
     }
+    out.purchase_value = pv;
   }
 
   return out;
