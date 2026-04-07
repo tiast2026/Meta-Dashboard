@@ -34,7 +34,7 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
-      <aside className="hidden md:flex w-56 flex-col bg-[#3b5998] text-white fixed inset-y-0 left-0 z-20">
+      <aside className="hidden md:flex w-56 flex-col bg-[#3b5998] text-white fixed inset-y-0 left-0 z-20 overflow-y-auto">
         <div className="px-4 py-5 border-b border-white/20">
           <Link href={basePath} className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
@@ -116,8 +116,9 @@ export default function DashboardLayout({
         </div>
       </div>
 
-      {/* Main content */}
-      <main className="flex-1 md:ml-56 mt-[88px] md:mt-0">
+      {/* Main content. min-w-0 prevents flex children from overflowing
+          when their content is wider than the parent (e.g. wide tables). */}
+      <main className="flex-1 min-w-0 md:ml-56 mt-[88px] md:mt-0 max-w-full overflow-x-hidden">
         {children}
       </main>
     </div>
