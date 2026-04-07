@@ -355,60 +355,64 @@ function MonthGrid({ month, pendingFrom, pendingTo, hoverDate, onDayClick, onDay
 
   return (
     <div className="select-none">
-      <div className="grid grid-cols-7 mb-1">
-        {WEEKDAYS.map((w, i) => (
-          <div
-            key={w}
-            className={cn(
-              "w-9 h-7 flex items-center justify-center text-[11px] font-medium",
-              i === 0 ? "text-rose-500" : i === 6 ? "text-sky-500" : "text-gray-500"
-            )}
-          >
-            {w}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-y-0.5">
-        {grid.map((d, idx) => {
-          const inMonth = d.getMonth() === month.getMonth()
-          const inRange = isInRange(d)
-          const start = isStart(d)
-          const end = isEnd(d)
-          const isToday = isSameDay(d, today)
-          const isSingle = start && end
-
-          return (
-            <div
-              key={idx}
-              className={cn(
-                "relative h-9 flex items-center justify-center",
-                inRange && !start && !end && "bg-indigo-50",
-                inRange && start && !isSingle && "bg-indigo-50 rounded-l-md",
-                inRange && end && !isSingle && "bg-indigo-50 rounded-r-md"
-              )}
-            >
-              <button
-                type="button"
-                disabled={!inMonth}
-                onClick={() => inMonth && onDayClick(d)}
-                onMouseEnter={() => inMonth && onDayHover(d)}
-                onMouseLeave={() => onDayHover(undefined)}
+      <table className="border-separate" style={{ borderSpacing: "2px" }}>
+        <thead>
+          <tr>
+            {WEEKDAYS.map((w, i) => (
+              <th
+                key={w}
                 className={cn(
-                  "w-9 h-9 inline-flex items-center justify-center text-xs font-medium rounded-md transition-colors",
-                  !inMonth && "text-gray-300 cursor-default",
-                  inMonth && !inRange && !isToday && "text-gray-700 hover:bg-gray-100",
-                  isToday && !start && !end && !inRange && "ring-1 ring-indigo-300 text-indigo-700",
-                  start && "bg-indigo-600 text-white hover:bg-indigo-700",
-                  end && !start && "bg-indigo-600 text-white hover:bg-indigo-700",
-                  inRange && !start && !end && "text-indigo-700 hover:bg-indigo-100"
+                  "w-10 h-7 text-[11px] font-semibold",
+                  i === 0 ? "text-rose-500" : i === 6 ? "text-sky-500" : "text-gray-500"
                 )}
               >
-                {d.getDate()}
-              </button>
-            </div>
-          )
-        })}
-      </div>
+                {w}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: 6 }).map((_, weekIdx) => (
+            <tr key={weekIdx}>
+              {Array.from({ length: 7 }).map((_, dayIdx) => {
+                const d = grid[weekIdx * 7 + dayIdx]
+                const inMonth = d.getMonth() === month.getMonth()
+                const inRange = isInRange(d)
+                const start = isStart(d)
+                const end = isEnd(d)
+                const isToday = isSameDay(d, today)
+                const isMiddle = inRange && !start && !end
+
+                return (
+                  <td key={dayIdx} className="p-0">
+                    <button
+                      type="button"
+                      disabled={!inMonth}
+                      onClick={() => inMonth && onDayClick(d)}
+                      onMouseEnter={() => inMonth && onDayHover(d)}
+                      onMouseLeave={() => onDayHover(undefined)}
+                      className={cn(
+                        "w-10 h-10 inline-flex items-center justify-center text-sm font-medium rounded-md transition-colors",
+                        !inMonth && "text-gray-300 cursor-default",
+                        // Default in-month cell
+                        inMonth && !inRange && !isToday && "text-gray-700 hover:bg-gray-100",
+                        // Today indicator (when not in range/selection)
+                        isToday && !start && !end && !isMiddle && "ring-1 ring-indigo-400 text-indigo-700 font-semibold",
+                        // In-range middle days
+                        isMiddle && "bg-indigo-100 text-indigo-700 hover:bg-indigo-200",
+                        // Range start/end
+                        (start || end) && "bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm font-semibold"
+                      )}
+                    >
+                      {d.getDate()}
+                    </button>
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
