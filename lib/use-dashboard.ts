@@ -39,17 +39,27 @@ export function useFetchData<T>(url: string | null) {
 
   useEffect(() => {
     if (!url) { setLoading(false); return; }
+    let cancelled = false;
     setLoading(true);
     setError(null);
     fetch(url)
       .then(async (res) => {
-        if (!res.ok) throw new Error("データの取得に失敗しました");
+        if (!res.ok) {
+          let msg = "データの取得に失敗しました";
+          try {
+            const j = await res.json();
+            if (j?.error) msg = j.error;
+          } catch {}
+          throw new Error(msg);
+        }
         return res.json();
       })
-      .then(setData)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch((err) => { if (!cancelled) setError(err.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [url]);
 
   return { data, loading, error };
 }
+

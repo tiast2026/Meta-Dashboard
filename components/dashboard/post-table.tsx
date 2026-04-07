@@ -2,10 +2,11 @@
 
 import { useState, useMemo } from "react"
 import { format, parseISO } from "date-fns"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { downloadCsv } from "@/lib/csv"
 import {
   Table,
   TableBody,
@@ -83,9 +84,48 @@ export function PostTable({ posts }: PostTableProps) {
     return ((post.likes + post.comments + post.saves + post.shares) / post.reach) * 100
   }
 
+  const exportCsv = () => {
+    downloadCsv(
+      sortedPosts.map((p) => ({
+        posted_at: p.posted_at,
+        media_type: p.media_type,
+        permalink: p.permalink,
+        caption: p.caption,
+        likes: p.likes,
+        comments: p.comments,
+        saves: p.saves,
+        shares: p.shares,
+        impressions: p.impressions,
+        reach: p.reach,
+        video_views: p.video_views,
+        engagement_rate: calcER(p).toFixed(2),
+      })),
+      `instagram_posts_${format(new Date(), "yyyyMMdd")}.csv`,
+      [
+        { key: "posted_at", label: "投稿日時" },
+        { key: "media_type", label: "タイプ" },
+        { key: "permalink", label: "URL" },
+        { key: "caption", label: "キャプション" },
+        { key: "likes", label: "いいね" },
+        { key: "comments", label: "コメント" },
+        { key: "saves", label: "保存" },
+        { key: "shares", label: "シェア" },
+        { key: "impressions", label: "インプレッション" },
+        { key: "reach", label: "リーチ" },
+        { key: "video_views", label: "再生数" },
+        { key: "engagement_rate", label: "ER(%)" },
+      ]
+    )
+  }
+
   return (
     <div>
-      <h3 className="text-base font-semibold text-gray-900 mb-4">投稿パフォーマンス</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold text-gray-900">投稿パフォーマンス</h3>
+        <Button variant="outline" size="sm" onClick={exportCsv} disabled={sortedPosts.length === 0}>
+          <Download className="size-3.5 mr-1.5" /> CSVダウンロード
+        </Button>
+      </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>

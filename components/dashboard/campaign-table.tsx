@@ -1,9 +1,12 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { ArrowUpDown } from "lucide-react"
+import { ArrowUpDown, Download } from "lucide-react"
+import { format } from "date-fns"
 
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { downloadCsv } from "@/lib/csv"
 import {
   Table,
   TableBody,
@@ -104,9 +107,40 @@ export function CampaignTable({ campaigns }: CampaignTableProps) {
     },
   ]
 
+  const exportCsv = () => {
+    downloadCsv(
+      sortedCampaigns.map((c) => ({
+        campaign_name: c.campaign_name,
+        impressions: c.impressions,
+        reach: c.reach,
+        clicks: c.clicks,
+        ctr: c.ctr.toFixed(2),
+        cpc: Math.round(c.cpc),
+        results: c.results,
+        spend: Math.round(c.spend),
+      })),
+      `meta_campaigns_${format(new Date(), "yyyyMMdd")}.csv`,
+      [
+        { key: "campaign_name", label: "キャンペーン名" },
+        { key: "impressions", label: "インプレッション" },
+        { key: "reach", label: "リーチ" },
+        { key: "clicks", label: "クリック" },
+        { key: "ctr", label: "CTR(%)" },
+        { key: "cpc", label: "CPC(¥)" },
+        { key: "results", label: "結果" },
+        { key: "spend", label: "消化金額(¥)" },
+      ]
+    )
+  }
+
   return (
     <div>
-      <h3 className="text-base font-semibold text-gray-900 mb-4">キャンペーン別実績</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold text-gray-900">キャンペーン別実績</h3>
+        <Button variant="outline" size="sm" onClick={exportCsv} disabled={sortedCampaigns.length === 0}>
+          <Download className="size-3.5 mr-1.5" /> CSVダウンロード
+        </Button>
+      </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>

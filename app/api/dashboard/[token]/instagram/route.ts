@@ -33,6 +33,9 @@ export async function GET(
 
     const fromDate = new Date(from);
     const toDate = new Date(to);
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return NextResponse.json({ error: 'invalid date format' }, { status: 400 });
+    }
     const periodLength = toDate.getTime() - fromDate.getTime();
     const prevTo = new Date(fromDate.getTime() - 1);
     const prevFrom = new Date(prevTo.getTime() - periodLength);
@@ -120,8 +123,9 @@ export async function GET(
         WHERE client_id = ? AND posted_at >= ? AND posted_at <= ?`,
         args: [clientId, from, to + 'T23:59:59'],
       });
-      if (postKpi.rows[0]) {
-        finalKpi = { ...Object.fromEntries(Object.entries(postKpi.rows[0])), followers: 0, follows: 0, interactions: 0 };
+      const row = postKpi.rows[0];
+      if (row) {
+        finalKpi = { ...Object.fromEntries(Object.entries(row)), followers: kpiResult.followers || 0, follows: 0, interactions: 0 };
       }
     }
 

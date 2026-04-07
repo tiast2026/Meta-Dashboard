@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { useDashboard, useFetchData } from "@/lib/use-dashboard";
+import { ErrorBanner } from "@/components/dashboard/error-banner";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { FollowerTrendChart } from "@/components/dashboard/follower-trend-chart";
 import { KpiCard } from "@/components/dashboard/kpi-card";
@@ -17,7 +18,7 @@ interface IgData {
 function FollowersContent() {
   const { token, from, to, handleDateChange } = useDashboard();
 
-  const { data, loading } = useFetchData<IgData>(
+  const { data, loading, error } = useFetchData<IgData>(
     `/api/dashboard/${token}/instagram?from=${from}&to=${to}`
   );
 
@@ -45,6 +46,7 @@ function FollowersContent() {
       />
 
       <div className="px-6 py-6 space-y-6">
+        {error && <ErrorBanner message={error} />}
         {loading ? (
           <div className="h-[400px] animate-pulse rounded-xl bg-gray-100" />
         ) : (

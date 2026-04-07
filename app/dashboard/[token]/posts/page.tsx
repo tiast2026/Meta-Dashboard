@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { useDashboard, useFetchData } from "@/lib/use-dashboard";
+import { ErrorBanner } from "@/components/dashboard/error-banner";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PostTable } from "@/components/dashboard/post-table";
 
@@ -34,7 +35,7 @@ function PostsContent() {
   const { data: igData } = useFetchData<IgData>(
     `/api/dashboard/${token}/instagram?from=${from}&to=${to}`
   );
-  const { data, loading } = useFetchData<PostsData>(
+  const { data, loading, error } = useFetchData<PostsData>(
     `/api/dashboard/${token}/posts?from=${from}&to=${to}`
   );
 
@@ -58,6 +59,7 @@ function PostsContent() {
       />
 
       <div className="px-6 py-6 space-y-6">
+        {error && <ErrorBanner message={error} />}
         {loading ? (
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (

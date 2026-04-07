@@ -20,11 +20,25 @@ export async function GET(
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+
+    const args: (string | number)[] = [String(client.client_id)];
+    let dateFilter = '';
+    if (from && to) {
+      if (isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) {
+        return NextResponse.json({ error: 'invalid date format' }, { status: 400 });
+      }
+      dateFilter = ' AND posted_at >= ? AND posted_at <= ?';
+      args.push(from, to + 'T23:59:59');
+    }
+
     const posts = await db.execute({
       sql: `SELECT * FROM instagram_posts
-            WHERE client_id = ?
-            ORDER BY posted_at DESC LIMIT 200`,
-      args: [String(client.client_id)],
+            WHERE client_id = ?${dateFilter}
+            ORDER BY posted_at DESC LIMIT 500`,
+      args,
     });
 
     return NextResponse.json({ posts: posts.rows });

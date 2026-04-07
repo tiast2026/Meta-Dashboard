@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { useDashboard, useFetchData } from "@/lib/use-dashboard";
+import { ErrorBanner } from "@/components/dashboard/error-banner";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { TaggedPostsTable } from "@/components/dashboard/tagged-posts-table";
 import { Tag } from "lucide-react";
@@ -29,7 +30,7 @@ function TaggedContent() {
   const { data: igData } = useFetchData<IgData>(
     `/api/dashboard/${token}/instagram?from=${from}&to=${to}`
   );
-  const { data, loading } = useFetchData<TaggedData>(
+  const { data, loading, error } = useFetchData<TaggedData>(
     `/api/dashboard/${token}/tagged-posts?from=${from}&to=${to}`
   );
 
@@ -55,6 +56,7 @@ function TaggedContent() {
       />
 
       <div className="px-6 py-6 space-y-6">
+        {error && <ErrorBanner message={error} />}
         {loading ? (
           <div className="h-[400px] animate-pulse rounded-xl bg-gray-100" />
         ) : (

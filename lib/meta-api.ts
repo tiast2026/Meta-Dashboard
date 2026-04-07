@@ -239,11 +239,13 @@ export interface MetaAdInsight {
   adset_name: string;
   ad_id: string;
   ad_name: string;
+  publisher_platform: string;
   impressions: number;
   reach: number;
   clicks: number;
   spend: number;
   results: number;
+  website_actions: number;
 }
 
 export async function fetchMetaAds(
@@ -265,7 +267,7 @@ export async function fetchMetaAds(
 
   for (const chunk of chunks) {
     try {
-      let nextUrl: string | null = `${BASE_URL}/${accountId}/insights?fields=${fields}&level=ad&time_range={"since":"${chunk.since}","until":"${chunk.until}"}&time_increment=1&limit=500&access_token=${token}`;
+      let nextUrl: string | null = `${BASE_URL}/${accountId}/insights?fields=${fields}&level=ad&breakdowns=publisher_platform&time_range={"since":"${chunk.since}","until":"${chunk.until}"}&time_increment=1&limit=500&access_token=${token}`;
       let page = 0;
 
       while (nextUrl && page < 10) {
@@ -274,11 +276,16 @@ export async function fetchMetaAds(
 
         for (const row of res.data) {
           let results = 0;
+          let website_actions = 0;
           const actions = row.actions as { action_type: string; value: string }[] | undefined;
           if (actions) {
             for (const a of actions) {
+              const v = Number(a.value) || 0;
               if (['lead', 'purchase', 'complete_registration', 'link_click'].includes(a.action_type)) {
-                results += Number(a.value) || 0;
+                results += v;
+              }
+              if (a.action_type.startsWith('offsite_conversion.') || a.action_type === 'link_click') {
+                website_actions += v;
               }
             }
           }
@@ -292,11 +299,13 @@ export async function fetchMetaAds(
             adset_name: String(row.adset_name || ''),
             ad_id: String(row.ad_id || ''),
             ad_name: String(row.ad_name || ''),
+            publisher_platform: String(row.publisher_platform || ''),
             impressions: Number(row.impressions) || 0,
             reach: Number(row.reach) || 0,
             clicks: Number(row.clicks) || 0,
             spend: Number(row.spend) || 0,
             results,
+            website_actions,
           });
         }
 

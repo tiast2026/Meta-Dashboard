@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { Users, BarChart3, Settings, BookOpen } from "lucide-react";
+import { Users, BarChart3, BookOpen, LogOut } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "クライアント管理", icon: Users },
@@ -12,6 +13,12 @@ const navItems = [
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+
+  // Login page is rendered without the admin shell chrome
+  if (pathname === "/admin/login") {
+    return <>{children}</>;
+  }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
@@ -59,14 +66,20 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           })}
         </nav>
 
-        <div className="p-4 mt-auto">
-          <div className="rounded-lg bg-white/5 border border-white/10 p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Settings className="w-3.5 h-3.5 text-slate-400" />
-              <p className="text-xs font-medium text-slate-300">Vercel</p>
+        <div className="p-4 mt-auto space-y-3">
+          {session?.user?.email && (
+            <div className="rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">ログイン中</p>
+              <p className="text-xs text-slate-200 truncate">{session.user.email}</p>
             </div>
-            <p className="text-[11px] text-slate-500">Hobby Plan</p>
-          </div>
+          )}
+          <button
+            onClick={() => signOut({ callbackUrl: "/admin/login" })}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            ログアウト
+          </button>
         </div>
       </aside>
 

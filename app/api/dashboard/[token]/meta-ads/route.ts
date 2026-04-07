@@ -26,6 +26,13 @@ export async function GET(
     const from = searchParams.get('from');
     const to = searchParams.get('to');
 
+    if (from && isNaN(new Date(from).getTime())) {
+      return NextResponse.json({ error: 'invalid from date' }, { status: 400 });
+    }
+    if (to && isNaN(new Date(to).getTime())) {
+      return NextResponse.json({ error: 'invalid to date' }, { status: 400 });
+    }
+
     const hasDateFilter = from && to;
     const dateCondition = hasDateFilter ? 'AND date >= ? AND date <= ?' : '';
     const dateArgs = hasDateFilter ? [from, to] : [];
