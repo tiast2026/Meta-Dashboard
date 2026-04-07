@@ -170,6 +170,79 @@ export default function ClientDetailPage() {
     }
   };
 
+  const MAX_RETRIES = 3;
+
+  type Phase = "all" | "ig_daily" | "ig_posts" | "ig_tagged" | "meta_ads";
+
+  const runFetchAttempt = (
+    full: boolean,
+    attempt: number,
+    phase: Phase,
+    progressBase: number,
+    progressSpan: number
+  ): Promise<{ completed: boolean }> => {
+    return new Promise((resolve) => {
+      const params = new URLSearchParams({ client_id: clientId });
+      if (full) params.set("full", "1");
+      if (phase !== "all") params.set("phase", phase);
+      const evtSource = new EventSource(`/api/import/fetch-all?${params.toString()}`);
+      let completed = false;
+      const stepKeyMap: Record<string, string> = {
+        ig_daily: "ig_daily",
+        ig_posts: "ig_posts",
+        ig_tagged: "ig_tagged",
+        meta_ads: "meta_ads",
+      };
+
+      evtSource.onmessage = (event) => {
+        const data = JSON.parse(event.data) as { step: string; status: string; message: string; progress?: number };
+        if (data.progress !== undefined) {
+          // Map per-phase 0-100 onto the global progressBase..progressBase+progressSpan
+          setFetchAllProgress(Math.min(100, Math.round(progressBase + (data.progress / 100) * progressSpan)));
+        }
+
+        const uiKey = stepKeyMap[data.step];
+        if (uiKey) {
+          setFetchStates((prev) => ({
+            ...prev,
+            [uiKey]: {
+              loading: data.status === "running",
+              message: attempt > 0 ? `[再試行${attempt}] ${data.message}` : data.message,
+              success: data.status === "done" ? true : data.status === "error" ? false : null,
+            },
+          }));
+        }
+
+        if (data.step === "complete") {
+          completed = true;
+          evtSource.close();
+          resolve({ completed: true });
+        }
+      };
+
+      evtSource.onerror = () => {
+        evtSource.close();
+        resolve({ completed });
+      };
+    });
+  };
+
+  const runPhaseWithRetry = async (
+    full: boolean,
+    phase: Phase,
+    progressBase: number,
+    progressSpan: number
+  ): Promise<boolean> => {
+    let attempt = 0;
+    let result = await runFetchAttempt(full, 0, phase, progressBase, progressSpan);
+    while (!result.completed && attempt < MAX_RETRIES) {
+      attempt++;
+      await new Promise((r) => setTimeout(r, 1500 * attempt));
+      result = await runFetchAttempt(full, attempt, phase, progressBase, progressSpan);
+    }
+    return result.completed;
+  };
+
   const fetchAllFromApi = async (full: boolean = false) => {
     if (full) {
       const ok = confirm(
@@ -177,13 +250,13 @@ export default function ClientDetailPage() {
         "・Instagram: 約2年\n" +
         "・Meta広告: 約37ヶ月\n" +
         "・投稿: 最大3,000件\n\n" +
-        "APIコール数が多くなり、完了まで30〜60秒かかる場合があります。続行しますか？"
+        "APIコール数が多くなり、完了まで30〜60秒かかる場合があります。\n" +
+        "途中でタイムアウトしても自動で最大3回まで再試行します。続行しますか？"
       );
       if (!ok) return;
     }
     setFetchAllRunning(true);
     setFetchAllProgress(0);
-    // Reset all states
     setFetchStates({
       ig_daily: { loading: true, message: "待機中...", success: null },
       ig_posts: { loading: true, message: "待機中...", success: null },
@@ -192,48 +265,34 @@ export default function ClientDetailPage() {
     });
 
     try {
-      const url = full
-        ? `/api/import/fetch-all?client_id=${clientId}&full=1`
-        : `/api/import/fetch-all?client_id=${clientId}`;
-      const evtSource = new EventSource(url);
-
-      evtSource.onmessage = (event) => {
-        const data = JSON.parse(event.data) as { step: string; status: string; message: string; progress?: number };
-
-        if (data.progress !== undefined) {
-          setFetchAllProgress(data.progress);
+      let allCompleted = true;
+      if (full) {
+        // For full mode we run each phase as a separate request so each fits
+        // inside the Vercel function time limit. The 4 phases share the
+        // overall progress bar (25% each).
+        const phases: Phase[] = ["ig_daily", "ig_posts", "ig_tagged", "meta_ads"];
+        for (let i = 0; i < phases.length; i++) {
+          const ok = await runPhaseWithRetry(full, phases[i], i * 25, 25);
+          if (!ok) allCompleted = false;
         }
+      } else {
+        allCompleted = await runPhaseWithRetry(full, "all", 0, 100);
+      }
 
-        const stepKeyMap: Record<string, string> = {
-          ig_daily: "ig_daily",
-          ig_posts: "ig_posts",
-          ig_tagged: "ig_tagged",
-          meta_ads: "meta_ads",
-        };
-
-        const uiKey = stepKeyMap[data.step];
-        if (uiKey) {
-          setFetchStates((prev) => ({
-            ...prev,
-            [uiKey]: {
-              loading: data.status === "running",
-              message: data.message,
-              success: data.status === "done" ? true : data.status === "error" ? false : null,
-            },
-          }));
-        }
-
-        if (data.step === "complete") {
-          evtSource.close();
-          setFetchAllRunning(false);
-          setFetchAllProgress(100);
-        }
-      };
-
-      evtSource.onerror = () => {
-        evtSource.close();
-        setFetchAllRunning(false);
-      };
+      setFetchAllRunning(false);
+      if (allCompleted) {
+        setFetchAllProgress(100);
+      } else {
+        setFetchStates((prev) => {
+          const next = { ...prev };
+          for (const k of Object.keys(next) as Array<keyof typeof next>) {
+            if (next[k].loading || next[k].success === null) {
+              next[k] = { loading: false, message: "タイムアウト（再試行上限）", success: false };
+            }
+          }
+          return next;
+        });
+      }
     } catch {
       setFetchAllRunning(false);
     }

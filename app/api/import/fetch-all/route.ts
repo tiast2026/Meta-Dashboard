@@ -22,6 +22,8 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+type Phase = 'all' | 'ig_daily' | 'ig_posts' | 'ig_tagged' | 'meta_ads';
+
 export async function GET(request: NextRequest) {
   const clientId = request.nextUrl.searchParams.get('client_id');
   if (!clientId) {
@@ -29,6 +31,11 @@ export async function GET(request: NextRequest) {
   }
   // ?full=1 → fetch maximum historical data instead of the default 30 days
   const fullMode = request.nextUrl.searchParams.get('full') === '1';
+  // ?phase=ig_daily|ig_posts|ig_tagged|meta_ads → only run a single phase so
+  // each call fits comfortably inside the Vercel function time limit. The UI
+  // chains these for full mode.
+  const phaseParam = (request.nextUrl.searchParams.get('phase') || 'all') as Phase;
+  const phaseAllowed = (p: Phase): boolean => phaseParam === 'all' || phaseParam === p;
 
   const client = await queryOne<Record<string, unknown>>(
     `SELECT instagram_account_id, meta_ad_account_id, meta_access_token FROM ${T} WHERE client_id = @id LIMIT 1`,
@@ -56,15 +63,17 @@ export async function GET(request: NextRequest) {
       await ensureDb();
 
       const steps = [
-        { key: 'ig_daily', label: 'Instagram日次データ', needsIg: true },
-        { key: 'ig_posts', label: 'Instagram投稿データ', needsIg: true },
-        { key: 'ig_tagged', label: 'タグ付け投稿', needsIg: true },
-        { key: 'meta_ads', label: 'Meta広告データ', needsAd: true },
+        { key: 'ig_daily' as Phase, label: 'Instagram日次データ', needsIg: true },
+        { key: 'ig_posts' as Phase, label: 'Instagram投稿データ', needsIg: true },
+        { key: 'ig_tagged' as Phase, label: 'タグ付け投稿', needsIg: true },
+        { key: 'meta_ads' as Phase, label: 'Meta広告データ', needsAd: true },
       ];
 
       const totalSteps = steps.filter(s =>
-        (s.needsIg ? !!igId : true) && (s.needsAd ? !!adAccountId : true)
-      ).length;
+        phaseAllowed(s.key) &&
+        (s.needsIg ? !!igId : true) &&
+        (s.needsAd ? !!adAccountId : true)
+      ).length || 1;
       let completedSteps = 0;
 
       const now = new Date();
@@ -74,7 +83,7 @@ export async function GET(request: NextRequest) {
       const adsUntil = fullMode ? isoDate(now) : undefined;
 
       // --- 1. Instagram Daily Insights ---
-      if (igId) {
+      if (igId && phaseAllowed('ig_daily')) {
         send({ step: 'ig_daily', status: 'running', message: fullMode ? '全期間 Instagram日次データを取得中...' : 'Instagram日次データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
         try {
           const insights = await fetchIgAccountInsights(igId, token, igSince, igUntil);
@@ -104,7 +113,7 @@ export async function GET(request: NextRequest) {
       }
 
       // --- 2. Instagram Posts ---
-      if (igId) {
+      if (igId && phaseAllowed('ig_posts')) {
         send({ step: 'ig_posts', status: 'running', message: fullMode ? '全期間 Instagram投稿を取得中...' : 'Instagram投稿データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
         try {
           const posts = await fetchIgPosts(igId, token, { full: fullMode });
@@ -134,7 +143,7 @@ export async function GET(request: NextRequest) {
       }
 
       // --- 3. Tagged Posts ---
-      if (igId) {
+      if (igId && phaseAllowed('ig_tagged')) {
         send({ step: 'ig_tagged', status: 'running', message: fullMode ? '全期間 タグ付け投稿を取得中...' : 'タグ付け投稿を取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
         try {
           const posts = await fetchIgTaggedPosts(igId, token, { full: fullMode });
@@ -161,7 +170,7 @@ export async function GET(request: NextRequest) {
       }
 
       // --- 4. Meta Ads ---
-      if (adAccountId) {
+      if (adAccountId && phaseAllowed('meta_ads')) {
         send({ step: 'meta_ads', status: 'running', message: fullMode ? '全期間 Meta広告データを取得中...' : 'Meta広告データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
         try {
           const insights = await fetchMetaAds(adAccountId, token, adsSince, adsUntil);
