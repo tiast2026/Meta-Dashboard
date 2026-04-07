@@ -461,6 +461,116 @@ export async function fetchMetaAds(
   return allInsights;
 }
 
+// ─── Meta Ads Demographic / Geo / Time Breakdowns ──────────────
+
+export type BreakdownType = 'age_gender' | 'region' | 'country' | 'hourly' | 'device';
+
+export interface MetaAdBreakdownRow {
+  date: string;
+  breakdown_type: BreakdownType;
+  breakdown_key: string;
+  impressions: number;
+  reach: number;
+  clicks: number;
+  spend: number;
+  purchase: number;
+  purchase_value: number;
+  add_to_cart: number;
+  initiate_checkout: number;
+}
+
+const BREAKDOWN_PARAM: Record<BreakdownType, string> = {
+  age_gender: 'age,gender',
+  region: 'region',
+  country: 'country',
+  hourly: 'hourly_stats_aggregated_by_advertiser_time_zone',
+  device: 'device_platform',
+};
+
+function makeBreakdownKey(type: BreakdownType, row: Record<string, unknown>): string {
+  switch (type) {
+    case 'age_gender':
+      return `${row.age || ''}|${row.gender || ''}`;
+    case 'region':
+      return String(row.region || '');
+    case 'country':
+      return String(row.country || '');
+    case 'hourly':
+      return String(row.hourly_stats_aggregated_by_advertiser_time_zone || '');
+    case 'device':
+      return String(row.device_platform || '');
+  }
+}
+
+/**
+ * Fetch breakdown insights for an account. We use account-level (no level=ad)
+ * because per-ad breakdowns explode in row count and easily blow past
+ * Vercel's 60s budget. This still gives client-level slices which is what
+ * the dashboard shows.
+ */
+export async function fetchMetaAdsBreakdown(
+  adAccountId: string,
+  token: string,
+  type: BreakdownType,
+  since?: string,
+  until?: string
+): Promise<MetaAdBreakdownRow[]> {
+  const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+  const now = new Date();
+  const endDate = until ? new Date(until) : now;
+  // Default: last 30 days. Pass since/until for longer ranges.
+  const defaultStart = new Date(now.getTime() - 30 * 86400000);
+  const startDate = since ? new Date(since) : defaultStart;
+
+  // Hourly is much heavier — chunk smaller.
+  const chunkDays = type === 'hourly' ? 7 : 30;
+  const chunks = dateChunks(startDate, endDate, chunkDays);
+  const breakdownsParam = BREAKDOWN_PARAM[type];
+  const fields = 'impressions,reach,clicks,spend,actions,action_values';
+  const out: MetaAdBreakdownRow[] = [];
+
+  for (const chunk of chunks) {
+    try {
+      let nextUrl: string | null =
+        `${BASE_URL}/${accountId}/insights?fields=${fields}&breakdowns=${breakdownsParam}` +
+        `&time_range={"since":"${chunk.since}","until":"${chunk.until}"}` +
+        `&time_increment=1&limit=500&access_token=${token}`;
+      let page = 0;
+
+      while (nextUrl && page < 10) {
+        const res: MetaApiResponse<Record<string, unknown>> = await metaFetch<Record<string, unknown>>(nextUrl);
+        if (!res.data || res.data.length === 0) break;
+
+        for (const row of res.data) {
+          const actions = row.actions as { action_type: string; value: string }[] | undefined;
+          const actionValues = row.action_values as { action_type: string; value: string }[] | undefined;
+          const mapped = mapActions(actions, actionValues);
+          out.push({
+            date: String(row.date_start || ''),
+            breakdown_type: type,
+            breakdown_key: makeBreakdownKey(type, row),
+            impressions: Number(row.impressions) || 0,
+            reach: Number(row.reach) || 0,
+            clicks: Number(row.clicks) || 0,
+            spend: Number(row.spend) || 0,
+            purchase: mapped.purchase,
+            purchase_value: mapped.purchase_value,
+            add_to_cart: mapped.add_to_cart,
+            initiate_checkout: mapped.initiate_checkout,
+          });
+        }
+
+        nextUrl = (res.paging?.next as string) || null;
+        page++;
+      }
+    } catch (err) {
+      console.warn(`Breakdown ${type} chunk ${chunk.since}~${chunk.until} failed:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  return out;
+}
+
 // ─── Meta Ad Creatives (thumbnail/image/permalink) ──────────────
 
 export interface MetaAdCreative {

@@ -98,6 +98,39 @@ export async function ensureDb() {
     // ignore
   }
 
+  // Demographics & breakdowns table.
+  // breakdown_type: 'age_gender' | 'region' | 'country' | 'hourly' | 'device'
+  // breakdown_key:  unique key inside the breakdown
+  //   age_gender → "18-24|female"
+  //   region     → "Tokyo"
+  //   country    → "JP"
+  //   hourly     → "14:00:00 - 14:59:59"
+  //   device     → "mobile_web"
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS meta_ad_breakdowns (
+      client_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      breakdown_type TEXT NOT NULL,
+      breakdown_key TEXT NOT NULL,
+      impressions INTEGER DEFAULT 0,
+      reach INTEGER DEFAULT 0,
+      clicks INTEGER DEFAULT 0,
+      spend REAL DEFAULT 0,
+      purchase INTEGER DEFAULT 0,
+      purchase_value REAL DEFAULT 0,
+      add_to_cart INTEGER DEFAULT 0,
+      initiate_checkout INTEGER DEFAULT 0,
+      PRIMARY KEY (client_id, date, breakdown_type, breakdown_key)
+    )`);
+  } catch {
+    // ignore
+  }
+  try {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_meta_breakdowns_lookup ON meta_ad_breakdowns(client_id, breakdown_type, date)');
+  } catch {
+    // ignore
+  }
+
   // Add detailed action columns (ATC, IC, purchase, ROAS など)
   const adActionColumns = [
     'add_to_cart INTEGER DEFAULT 0',
