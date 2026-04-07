@@ -43,6 +43,7 @@ function FollowersContent() {
         from={from}
         to={to}
         onDateChange={handleDateChange}
+        loading={loading}
       />
 
       <div className="px-6 py-6 space-y-6">
