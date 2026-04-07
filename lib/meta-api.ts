@@ -460,3 +460,83 @@ export async function fetchMetaAds(
 
   return allInsights;
 }
+
+// ─── Meta Ad Creatives (thumbnail/image/permalink) ──────────────
+
+export interface MetaAdCreative {
+  ad_id: string;
+  ad_name: string;
+  thumbnail_url: string;
+  image_url: string;
+  title: string;
+  body: string;
+  call_to_action_type: string;
+  link_url: string;
+  instagram_permalink_url: string;
+  effective_object_story_id: string;
+}
+
+/**
+ * Fetch all ads in an account with their creative data. Used to display ad
+ * thumbnails next to insights rows. Returns one row per ad (not per date).
+ */
+export async function fetchMetaAdCreatives(
+  adAccountId: string,
+  token: string,
+  options?: { full?: boolean }
+): Promise<MetaAdCreative[]> {
+  const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+  // Request the creative subfields we need. `thumbnail_url` is a small
+  // (~64x64) preview Meta hosts; `image_url` is the full sized one.
+  const fields = [
+    'id',
+    'name',
+    'effective_object_story_id',
+    'creative{thumbnail_url,image_url,title,body,call_to_action_type,object_story_spec,instagram_permalink_url,effective_instagram_media_id}',
+  ].join(',');
+
+  const limit = 200;
+  // Default cap = 5 pages = 1000 ads. full=true raises to 50 pages = 10000.
+  const maxPages = options?.full ? 50 : 5;
+
+  const out: MetaAdCreative[] = [];
+  let nextUrl: string | null = `${BASE_URL}/${accountId}/ads?fields=${fields}&limit=${limit}&access_token=${token}`;
+  let page = 0;
+
+  while (nextUrl && page < maxPages) {
+    try {
+      const res: MetaApiResponse<Record<string, unknown>> = await metaFetch<Record<string, unknown>>(nextUrl);
+      if (!res.data || res.data.length === 0) break;
+
+      for (const ad of res.data) {
+        const creative = (ad.creative as Record<string, unknown> | undefined) || {};
+        // The link URL can live in a few places depending on the ad type
+        const objectStorySpec = (creative.object_story_spec as Record<string, unknown> | undefined) || {};
+        const linkData = (objectStorySpec.link_data as Record<string, unknown> | undefined) || {};
+        const videoData = (objectStorySpec.video_data as Record<string, unknown> | undefined) || {};
+        const linkUrl = String(linkData.link || videoData.link || '');
+
+        out.push({
+          ad_id: String(ad.id),
+          ad_name: String(ad.name || ''),
+          thumbnail_url: String(creative.thumbnail_url || ''),
+          image_url: String(creative.image_url || ''),
+          title: String(creative.title || linkData.name || ''),
+          body: String(creative.body || linkData.message || ''),
+          call_to_action_type: String(creative.call_to_action_type || ''),
+          link_url: linkUrl,
+          instagram_permalink_url: String(creative.instagram_permalink_url || ''),
+          effective_object_story_id: String(ad.effective_object_story_id || ''),
+        });
+      }
+
+      nextUrl = (res.paging?.next as string) || null;
+      page++;
+    } catch (err) {
+      console.warn('Ad creatives fetch failed:', err instanceof Error ? err.message : err);
+      break;
+    }
+  }
+
+  return out;
+}

@@ -90,7 +90,24 @@ CREATE TABLE IF NOT EXISTS admin_users (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS meta_ad_creatives (
+  ad_id TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  ad_name TEXT,
+  thumbnail_url TEXT,
+  image_url TEXT,
+  title TEXT,
+  body TEXT,
+  call_to_action_type TEXT,
+  link_url TEXT,
+  instagram_permalink_url TEXT,
+  effective_object_story_id TEXT,
+  updated_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (client_id, ad_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_ig_daily_client_date ON instagram_daily_insights(client_id, date);
 CREATE INDEX IF NOT EXISTS idx_ig_posts_client ON instagram_posts(client_id, posted_at);
 CREATE INDEX IF NOT EXISTS idx_meta_ads_client_date ON meta_ad_insights(client_id, date);
 CREATE INDEX IF NOT EXISTS idx_clients_token ON clients(share_token);
+CREATE INDEX IF NOT EXISTS idx_meta_ad_creatives_client ON meta_ad_creatives(client_id);
