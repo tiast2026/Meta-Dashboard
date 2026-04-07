@@ -259,24 +259,24 @@ export function ExpandableCampaignTable({ hierarchy }: Props) {
 
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border border-gray-100">
-        <table className="w-full text-xs">
+        <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="sticky left-0 bg-gray-50 text-left font-semibold text-gray-700 px-3 py-2.5 min-w-[260px] z-10">
+              <th className="sticky left-0 bg-gray-50 text-left font-semibold text-gray-700 px-4 py-3 min-w-[280px] z-10">
                 <button onClick={() => handleSort("name")} className="inline-flex items-center gap-1 hover:text-indigo-600">
-                  名称 <ArrowUpDown className="w-3 h-3" />
+                  名称 <ArrowUpDown className="w-3.5 h-3.5" />
                 </button>
               </th>
               {visibleColumns.map((col) => (
                 <th
                   key={col.key}
                   className={cn(
-                    "px-3 py-2.5 font-semibold text-gray-700 whitespace-nowrap",
+                    "px-4 py-3 font-semibold text-gray-700 whitespace-nowrap",
                     col.align === "right" ? "text-right" : "text-left"
                   )}
                 >
                   <button onClick={() => handleSort(col.key)} className="inline-flex items-center gap-1 hover:text-indigo-600">
-                    {col.label} <ArrowUpDown className="w-3 h-3" />
+                    {col.label} <ArrowUpDown className="w-3.5 h-3.5" />
                   </button>
                 </th>
               ))}
@@ -290,8 +290,8 @@ export function ExpandableCampaignTable({ hierarchy }: Props) {
               return (
                 <Fragment key={cKey}>
                   <tr className="hover:bg-indigo-50/30 transition-colors">
-                    <td className="sticky left-0 bg-white hover:bg-indigo-50/30 px-3 py-2.5 z-10">
-                      <div className="flex items-center gap-1.5">
+                    <td className="sticky left-0 bg-white hover:bg-indigo-50/30 px-4 py-3 z-10">
+                      <div className="flex items-center gap-2">
                         {adsets.length > 0 ? (
                           <button onClick={() => toggleExpand(cKey)} className="text-gray-400 hover:text-indigo-600 shrink-0">
                             {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -299,18 +299,18 @@ export function ExpandableCampaignTable({ hierarchy }: Props) {
                         ) : (
                           <span className="w-4" />
                         )}
-                        <span className="font-semibold text-gray-900 truncate" title={c.campaign_name}>
+                        <span className="font-semibold text-gray-900 truncate text-sm" title={c.campaign_name}>
                           {c.campaign_name || "(無名キャンペーン)"}
                         </span>
                       </div>
                       {c.campaign_objective && (
-                        <span className="ml-5 inline-block mt-0.5 text-[10px] text-gray-400 uppercase tracking-wide">
+                        <span className="ml-6 inline-block mt-1 text-[11px] text-gray-400 uppercase tracking-wide">
                           {c.campaign_objective}
                         </span>
                       )}
                     </td>
                     {visibleColumns.map((col) => (
-                      <td key={col.key} className={cn("px-3 py-2.5 tabular-nums whitespace-nowrap font-medium text-gray-900", col.align === "right" && "text-right")}>
+                      <td key={col.key} className={cn("px-4 py-3 tabular-nums whitespace-nowrap font-semibold text-gray-900", col.align === "right" && "text-right")}>
                         {col.format(Number(c[col.key as keyof BaseRow]) || 0)}
                       </td>
                     ))}
@@ -321,36 +321,36 @@ export function ExpandableCampaignTable({ hierarchy }: Props) {
                     const ads = adsByAdset[String(s.adset_id)] || []
                     return (
                       <Fragment key={sKey}>
-                        <tr className="bg-gray-50/40 hover:bg-indigo-50/40">
-                          <td className="sticky left-0 bg-gray-50/40 hover:bg-indigo-50/40 px-3 py-2 pl-8 z-10">
-                            <div className="flex items-center gap-1.5">
+                        <tr className="bg-gray-50/60 hover:bg-indigo-50/40">
+                          <td className="sticky left-0 bg-gray-50/60 hover:bg-indigo-50/40 px-4 py-2.5 pl-10 z-10">
+                            <div className="flex items-center gap-2">
                               {ads.length > 0 ? (
                                 <button onClick={() => toggleExpand(sKey)} className="text-gray-400 hover:text-indigo-600 shrink-0">
-                                  {sOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                  {sOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                                 </button>
                               ) : (
-                                <span className="w-3.5" />
+                                <span className="w-4" />
                               )}
-                              <span className="text-gray-700 truncate text-[11px]" title={s.adset_name}>
+                              <span className="text-gray-700 truncate text-sm font-medium" title={s.adset_name}>
                                 {s.adset_name || "(無名広告セット)"}
                               </span>
                             </div>
                           </td>
                           {visibleColumns.map((col) => (
-                            <td key={col.key} className={cn("px-3 py-2 tabular-nums whitespace-nowrap text-gray-700", col.align === "right" && "text-right")}>
+                            <td key={col.key} className={cn("px-4 py-2.5 tabular-nums whitespace-nowrap text-gray-700 text-sm", col.align === "right" && "text-right")}>
                               {col.format(Number(s[col.key as keyof BaseRow]) || 0)}
                             </td>
                           ))}
                         </tr>
                         {sOpen && ads.map((a) => (
                           <tr key={`a-${a.ad_id}`} className="bg-white hover:bg-indigo-50/40">
-                            <td className="sticky left-0 bg-white hover:bg-indigo-50/40 px-3 py-1.5 pl-14 z-10">
-                              <span className="text-gray-600 text-[11px] truncate block" title={a.ad_name}>
+                            <td className="sticky left-0 bg-white hover:bg-indigo-50/40 px-4 py-2 pl-16 z-10">
+                              <span className="text-gray-600 text-sm truncate block" title={a.ad_name}>
                                 ・{a.ad_name || "(無名広告)"}
                               </span>
                             </td>
                             {visibleColumns.map((col) => (
-                              <td key={col.key} className={cn("px-3 py-1.5 tabular-nums whitespace-nowrap text-gray-600 text-[11px]", col.align === "right" && "text-right")}>
+                              <td key={col.key} className={cn("px-4 py-2 tabular-nums whitespace-nowrap text-gray-600 text-sm", col.align === "right" && "text-right")}>
                                 {col.format(Number(a[col.key as keyof BaseRow]) || 0)}
                               </td>
                             ))}
