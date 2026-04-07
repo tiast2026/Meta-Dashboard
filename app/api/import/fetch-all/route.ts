@@ -170,12 +170,20 @@ export async function GET(request: NextRequest) {
               sql: `INSERT OR REPLACE INTO meta_ad_insights
                 (client_id, date, publisher_platform, campaign_id, campaign_name, campaign_objective,
                  adset_id, adset_name, ad_id, ad_name,
-                 impressions, reach, clicks, results, website_actions, spend)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 impressions, reach, clicks, results, website_actions, spend,
+                 add_to_cart, initiate_checkout, purchase, purchase_value,
+                 view_content, lead, complete_registration, contact, subscribe, search,
+                 add_payment_info, add_to_wishlist, page_engagement, post_engagement,
+                 video_view, link_click)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               args: [
                 clientId, row.date, row.publisher_platform || '', row.campaign_id, row.campaign_name, row.campaign_objective,
                 row.adset_id, row.adset_name, row.ad_id, row.ad_name,
                 row.impressions, row.reach, row.clicks, row.results, row.website_actions, row.spend,
+                row.add_to_cart, row.initiate_checkout, row.purchase, row.purchase_value,
+                row.view_content, row.lead, row.complete_registration, row.contact, row.subscribe, row.search,
+                row.add_payment_info, row.add_to_wishlist, row.page_engagement, row.post_engagement,
+                row.video_view, row.link_click,
               ],
             }));
             for (let i = 0; i < stmts.length; i += 100) {

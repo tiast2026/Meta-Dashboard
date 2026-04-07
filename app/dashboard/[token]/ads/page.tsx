@@ -7,7 +7,7 @@ import { ErrorBanner } from "@/components/dashboard/error-banner";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { DailyTrendChart } from "@/components/dashboard/daily-trend-chart";
-import { CampaignTable } from "@/components/dashboard/campaign-table";
+import { ExpandableCampaignTable } from "@/components/dashboard/expandable-campaign-table";
 import { PlatformBreakdown } from "@/components/dashboard/platform-breakdown";
 
 function calcChange(current: number, previous: number): number {
@@ -22,6 +22,11 @@ interface AdsData {
   daily: Array<Record<string, unknown>>;
   campaigns: Array<Record<string, unknown>>;
   platforms: Array<Record<string, unknown>>;
+  hierarchy?: {
+    campaigns: Array<Record<string, unknown>>;
+    adsets: Array<Record<string, unknown>>;
+    ads: Array<Record<string, unknown>>;
+  };
 }
 
 function AdsContent() {
@@ -74,7 +79,7 @@ function AdsContent() {
             </div>
 
             <div className="rounded-xl border border-gray-200 bg-white p-6">
-              <CampaignTable campaigns={(data?.campaigns || []) as never[]} />
+              <ExpandableCampaignTable hierarchy={data?.hierarchy as never} />
             </div>
 
             {(data?.platforms || []).length > 0 && (
