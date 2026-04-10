@@ -255,21 +255,24 @@ export default function ClientDetailPage() {
     return result.completed;
   };
 
-  /** Build a list of yearly date windows that go back N years from today.
-   *  The most recent year is fetched first so users see fresh data quickly. */
-  const buildYearlyWindows = (yearsBack: number): { since: string; until: string; label: string }[] => {
+  /** Build a list of half-year (6-month) date windows that go back N years
+   *  from today. Smaller windows avoid Vercel 60s timeouts for accounts with
+   *  large ad volumes. Most recent window first. */
+  const buildHalfYearWindows = (yearsBack: number): { since: string; until: string; label: string }[] => {
     const windows: { since: string; until: string; label: string }[] = [];
     const today = new Date();
-    for (let i = 0; i < yearsBack; i++) {
+    const totalHalves = yearsBack * 2;
+    for (let i = 0; i < totalHalves; i++) {
       const until = new Date(today);
-      until.setFullYear(today.getFullYear() - i);
+      until.setMonth(today.getMonth() - i * 6);
       const since = new Date(until);
-      since.setFullYear(until.getFullYear() - 1);
-      since.setDate(since.getDate() + 1); // avoid 1-day overlap with the next window
+      since.setMonth(until.getMonth() - 6);
+      since.setDate(since.getDate() + 1);
+      const label = i === 0 ? "直近6ヶ月" : `${Math.floor(i / 2) + 1}年前${i % 2 === 0 ? "前半" : "後半"}`;
       windows.push({
         since: since.toISOString().slice(0, 10),
         until: until.toISOString().slice(0, 10),
-        label: `${i + 1}年前`,
+        label,
       });
     }
     return windows;
@@ -306,28 +309,28 @@ export default function ClientDetailPage() {
         allCompleted = await runPhaseWithRetry(false, "all", 0, 100);
       } else {
         // ── Full mode: split into many small windowed requests ──
-        // Heavy phases (meta_ads + meta_breakdowns) are split into 3 yearly
-        // windows. ig_daily is split into 2 yearly windows. Others run once.
+        // Heavy phases (meta_ads + meta_breakdowns) are split into 6-month
+        // windows to stay well under Vercel's 60s limit even for large accounts.
         type Step = { phase: Phase; weight: number; sinceUntil?: { since: string; until: string }; label?: string };
         const steps: Step[] = [];
 
-        // ig_daily: 2 yearly windows
-        for (const w of buildYearlyWindows(2)) {
+        // ig_daily: 2 yearly windows (light, can handle 1 year)
+        for (const w of buildHalfYearWindows(1)) {
           steps.push({ phase: "ig_daily", weight: 1, sinceUntil: { since: w.since, until: w.until }, label: w.label });
         }
         // ig_posts (1 shot, paginated by API)
         steps.push({ phase: "ig_posts", weight: 1 });
         // ig_tagged (1 shot)
         steps.push({ phase: "ig_tagged", weight: 1 });
-        // meta_ads: 3 yearly windows
-        for (const w of buildYearlyWindows(3)) {
-          steps.push({ phase: "meta_ads", weight: 2, sinceUntil: { since: w.since, until: w.until }, label: w.label });
+        // meta_ads: 6-month windows × 3 years = 6 windows
+        for (const w of buildHalfYearWindows(3)) {
+          steps.push({ phase: "meta_ads", weight: 1, sinceUntil: { since: w.since, until: w.until }, label: w.label });
         }
         // meta_creatives (1 shot, account snapshot)
         steps.push({ phase: "meta_creatives", weight: 1 });
-        // meta_breakdowns: 3 yearly windows
-        for (const w of buildYearlyWindows(3)) {
-          steps.push({ phase: "meta_breakdowns", weight: 2, sinceUntil: { since: w.since, until: w.until }, label: w.label });
+        // meta_breakdowns: 6-month windows × 3 years = 6 windows
+        for (const w of buildHalfYearWindows(3)) {
+          steps.push({ phase: "meta_breakdowns", weight: 1, sinceUntil: { since: w.since, until: w.until }, label: w.label });
         }
 
         const totalWeight = steps.reduce((s, st) => s + st.weight, 0);

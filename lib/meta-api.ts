@@ -11,8 +11,8 @@ const TIMEOUT = 30000;
 // IG Insights API: max 30 days per request
 const IG_INSIGHTS_CHUNK_DAYS = 30;
 
-// Meta Ads API
-const ADS_CHUNK_DAYS = 30;
+// Meta Ads API — smaller chunks to avoid Vercel 60s timeout on large accounts
+const ADS_CHUNK_DAYS = 14;
 
 // Posts pagination
 const POSTS_PAGE_LIMIT = 50;
