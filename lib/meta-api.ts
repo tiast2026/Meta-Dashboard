@@ -294,6 +294,12 @@ export interface MetaAdActions {
   post_engagement: number;
   video_view: number;
   link_click: number;
+  // Extra metrics
+  landing_page_view: number;
+  video_p25: number;
+  video_p50: number;
+  video_p75: number;
+  video_p100: number;
 }
 
 export interface MetaAdInsight extends MetaAdActions {
@@ -312,6 +318,7 @@ export interface MetaAdInsight extends MetaAdActions {
   spend: number;
   results: number;
   website_actions: number;
+  frequency: number;
 }
 
 const EMPTY_ACTIONS: MetaAdActions = {
@@ -331,6 +338,11 @@ const EMPTY_ACTIONS: MetaAdActions = {
   post_engagement: 0,
   video_view: 0,
   link_click: 0,
+  landing_page_view: 0,
+  video_p25: 0,
+  video_p50: 0,
+  video_p75: 0,
+  video_p100: 0,
 };
 
 /**
@@ -418,6 +430,11 @@ function mapActions(
     { key: 'post_engagement', aliases: ['post_engagement'] },
     { key: 'video_view', aliases: ['video_view'] },
     { key: 'link_click', aliases: ['link_click'] },
+    { key: 'landing_page_view', aliases: ['landing_page_view'] },
+    { key: 'video_p25', aliases: ['video_p25_watched_actions'] },
+    { key: 'video_p50', aliases: ['video_p50_watched_actions'] },
+    { key: 'video_p75', aliases: ['video_p75_watched_actions'] },
+    { key: 'video_p100', aliases: ['video_p100_watched_actions'] },
   ];
 
   // Build a quick lookup by action_type. Skip omni_* aggregates because they
@@ -476,7 +493,7 @@ export async function fetchMetaAds(
   const defaultStart = new Date(now.getTime() - 30 * 86400000);
   const startDate = since ? new Date(since) : defaultStart;
 
-  const fields = 'campaign_id,campaign_name,objective,adset_id,adset_name,ad_id,ad_name,impressions,reach,clicks,spend,actions,action_values';
+  const fields = 'campaign_id,campaign_name,objective,adset_id,adset_name,ad_id,ad_name,impressions,reach,clicks,spend,frequency,actions,action_values,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions';
   const chunks = dateChunks(startDate, endDate, ADS_CHUNK_DAYS);
   const allInsights: MetaAdInsight[] = [];
 
@@ -499,6 +516,12 @@ export async function fetchMetaAds(
           // "website_actions" = engagement style (kept for backwards compatibility)
           const website_actions = mapped.link_click + mapped.add_to_cart + mapped.initiate_checkout + mapped.purchase;
 
+          // Video play rate metrics come as arrays with a single element
+          const vp25 = row.video_p25_watched_actions as { value: string }[] | undefined;
+          const vp50 = row.video_p50_watched_actions as { value: string }[] | undefined;
+          const vp75 = row.video_p75_watched_actions as { value: string }[] | undefined;
+          const vp100 = row.video_p100_watched_actions as { value: string }[] | undefined;
+
           allInsights.push({
             date: String(row.date_start || ''),
             campaign_id: String(row.campaign_id || ''),
@@ -513,9 +536,14 @@ export async function fetchMetaAds(
             reach: Number(row.reach) || 0,
             clicks: Number(row.clicks) || 0,
             spend: Number(row.spend) || 0,
+            frequency: Number(row.frequency) || 0,
             results,
             website_actions,
             ...mapped,
+            video_p25: vp25?.[0] ? Number(vp25[0].value) || 0 : mapped.video_p25,
+            video_p50: vp50?.[0] ? Number(vp50[0].value) || 0 : mapped.video_p50,
+            video_p75: vp75?.[0] ? Number(vp75[0].value) || 0 : mapped.video_p75,
+            video_p100: vp100?.[0] ? Number(vp100[0].value) || 0 : mapped.video_p100,
           });
         }
 
@@ -532,7 +560,7 @@ export async function fetchMetaAds(
 
 // ─── Meta Ads Demographic / Geo / Time Breakdowns ──────────────
 
-export type BreakdownType = 'age_gender' | 'region' | 'country' | 'hourly' | 'device';
+export type BreakdownType = 'age_gender' | 'region' | 'country' | 'hourly' | 'device' | 'placement';
 
 export interface MetaAdBreakdownRow {
   date: string;
@@ -554,6 +582,7 @@ const BREAKDOWN_PARAM: Record<BreakdownType, string> = {
   country: 'country',
   hourly: 'hourly_stats_aggregated_by_advertiser_time_zone',
   device: 'device_platform',
+  placement: 'publisher_platform,platform_position',
 };
 
 function makeBreakdownKey(type: BreakdownType, row: Record<string, unknown>): string {
@@ -568,6 +597,8 @@ function makeBreakdownKey(type: BreakdownType, row: Record<string, unknown>): st
       return String(row.hourly_stats_aggregated_by_advertiser_time_zone || '');
     case 'device':
       return String(row.device_platform || '');
+    case 'placement':
+      return `${row.publisher_platform || ''}|${row.platform_position || ''}`;
   }
 }
 

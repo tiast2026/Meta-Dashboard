@@ -76,15 +76,16 @@ export async function GET(
       return r.rows.map((row) => withDerived(row as Row));
     };
 
-    const [age_gender, region, country, hourly, device] = await Promise.all([
+    const [age_gender, region, country, hourly, device, placement] = await Promise.all([
       fetchType('age_gender'),
       fetchType('region'),
       fetchType('country'),
       fetchType('hourly'),
       fetchType('device'),
+      fetchType('placement'),
     ]);
 
-    return NextResponse.json({ age_gender, region, country, hourly, device });
+    return NextResponse.json({ age_gender, region, country, hourly, device, placement });
   } catch (err) {
     console.error('Dashboard breakdowns error:', err);
     return NextResponse.json({ error: 'データの取得に失敗しました' }, { status: 500 });

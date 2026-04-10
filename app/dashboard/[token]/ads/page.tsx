@@ -43,6 +43,7 @@ function AdsContent() {
     country: never[];
     hourly: never[];
     device: never[];
+    placement: never[];
   }>(
     `/api/dashboard/${token}/meta-ads/breakdowns?from=${from}&to=${to}`
   );
