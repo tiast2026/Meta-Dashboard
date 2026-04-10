@@ -10,6 +10,7 @@ import { DailyTrendChart } from "@/components/dashboard/daily-trend-chart";
 import { ExpandableCampaignTable } from "@/components/dashboard/expandable-campaign-table";
 import { PlatformBreakdown } from "@/components/dashboard/platform-breakdown";
 import { AdsBreakdowns } from "@/components/dashboard/ads-breakdowns";
+import { AdsAdvisor } from "@/components/dashboard/ads-advisor";
 
 function calcChange(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;
@@ -44,6 +45,9 @@ function AdsContent() {
     device: never[];
   }>(
     `/api/dashboard/${token}/meta-ads/breakdowns?from=${from}&to=${to}`
+  );
+  const { data: advisorData, loading: advisorLoading } = useFetchData<never>(
+    `/api/dashboard/${token}/meta-ads/advisor`
   );
 
   const kpi = data?.kpi || {};
@@ -83,6 +87,12 @@ function AdsContent() {
               <KpiCard title="CTR (クリック率)" value={(Number(kpi.ctr) || 0).toFixed(2) + "%"} change={calcChange(Number(kpi.ctr) || 0, Number(prevKpi.ctr) || 0)} />
               <KpiCard title="CPM (千人単価)" value={"¥" + (Number(kpi.impressions) > 0 ? Math.round(Number(kpi.spend) / Number(kpi.impressions) * 1000) : 0).toLocaleString()} />
               <KpiCard title="成果数" value={Number(kpi.results) || 0} change={calcChange(Number(kpi.results) || 0, Number(prevKpi.results) || 0)} />
+            </div>
+
+            {/* Ad Advisor — 投下/縮小判断 */}
+            <div className="rounded-xl border border-gray-200 bg-white p-6">
+              <h2 className="text-base font-semibold text-gray-900 mb-4">📊 広告アドバイザー</h2>
+              <AdsAdvisor data={advisorData as never} loading={advisorLoading} />
             </div>
 
             <div className="rounded-xl border border-gray-200 bg-white p-6">
