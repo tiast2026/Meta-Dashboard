@@ -149,6 +149,13 @@ export async function ensureDb() {
     'post_engagement INTEGER DEFAULT 0',
     'video_view INTEGER DEFAULT 0',
     'link_click INTEGER DEFAULT 0',
+    // Extra metrics
+    'frequency REAL DEFAULT 0',
+    'video_p25 INTEGER DEFAULT 0',
+    'video_p50 INTEGER DEFAULT 0',
+    'video_p75 INTEGER DEFAULT 0',
+    'video_p100 INTEGER DEFAULT 0',
+    'landing_page_view INTEGER DEFAULT 0',
   ];
   for (const col of adActionColumns) {
     try {

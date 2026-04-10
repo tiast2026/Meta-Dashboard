@@ -27,6 +27,7 @@ interface BreakdownsData {
   country: BreakdownRow[]
   hourly: BreakdownRow[]
   device: BreakdownRow[]
+  placement: BreakdownRow[]
 }
 
 interface Props {
@@ -34,7 +35,7 @@ interface Props {
   loading?: boolean
 }
 
-type Tab = "age_gender" | "region" | "country" | "hourly" | "device"
+type Tab = "age_gender" | "region" | "country" | "hourly" | "device" | "placement"
 
 const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "age_gender", label: "年齢・性別", icon: Users },
@@ -42,6 +43,7 @@ const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: s
   { key: "country", label: "国", icon: Globe },
   { key: "hourly", label: "時間帯", icon: Clock },
   { key: "device", label: "デバイス", icon: Smartphone },
+  { key: "placement", label: "配置", icon: MapPin },
 ]
 
 const GENDER_LABEL: Record<string, string> = {
@@ -67,6 +69,35 @@ function formatKey(tab: Tab, key: string): string {
       desktop: "デスクトップ",
     }
     return labels[key] || key
+  }
+  if (tab === "placement") {
+    const [platform, position] = key.split("|")
+    const platformLabels: Record<string, string> = {
+      facebook: "Facebook",
+      instagram: "Instagram",
+      audience_network: "Audience Network",
+      messenger: "Messenger",
+    }
+    const positionLabels: Record<string, string> = {
+      feed: "フィード",
+      story: "ストーリーズ",
+      reels: "リール",
+      an_classic: "AN Classic",
+      instagram_explore: "発見タブ",
+      instagram_explore_grid_home: "発見ホーム",
+      instagram_profile_feed: "プロフィール",
+      right_hand_column: "右サイドバー",
+      instant_article: "インスタント記事",
+      marketplace: "マーケットプレイス",
+      video_feeds: "動画フィード",
+      search: "検索結果",
+      instream_video: "インストリーム動画",
+      facebook_reels: "FB リール",
+      instagram_reels: "IG リール",
+      instagram_stories: "IG ストーリーズ",
+      facebook_stories: "FB ストーリーズ",
+    }
+    return `${platformLabels[platform] || platform} / ${positionLabels[position] || position}`
   }
   return key || "(不明)"
 }

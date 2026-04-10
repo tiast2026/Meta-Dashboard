@@ -195,8 +195,9 @@ export async function GET(request: NextRequest) {
                  add_to_cart, initiate_checkout, purchase, purchase_value,
                  view_content, lead, complete_registration, contact, subscribe, search,
                  add_payment_info, add_to_wishlist, page_engagement, post_engagement,
-                 video_view, link_click)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 video_view, link_click,
+                 frequency, video_p25, video_p50, video_p75, video_p100, landing_page_view)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               args: [
                 clientId, row.date, row.publisher_platform || '', row.campaign_id, row.campaign_name, row.campaign_objective,
                 row.adset_id, row.adset_name, row.ad_id, row.ad_name,
@@ -205,6 +206,7 @@ export async function GET(request: NextRequest) {
                 row.view_content, row.lead, row.complete_registration, row.contact, row.subscribe, row.search,
                 row.add_payment_info, row.add_to_wishlist, row.page_engagement, row.post_engagement,
                 row.video_view, row.link_click,
+                row.frequency, row.video_p25, row.video_p50, row.video_p75, row.video_p100, row.landing_page_view,
               ],
             }));
             for (let i = 0; i < stmts.length; i += 100) {
@@ -250,7 +252,7 @@ export async function GET(request: NextRequest) {
       // --- 6. Meta Ads Breakdowns (age/gender/region/hour/device) ---
       if (adAccountId && phaseAllowed('meta_breakdowns')) {
         send({ step: 'meta_breakdowns', status: 'running', message: '広告 属性別データを取得中...', progress: Math.round((completedSteps / totalSteps) * 100) });
-        const types: BreakdownType[] = ['age_gender', 'region', 'country', 'hourly', 'device'];
+        const types: BreakdownType[] = ['age_gender', 'region', 'country', 'hourly', 'device', 'placement'];
         let totalRows = 0;
         const errors: string[] = [];
         for (const type of types) {
